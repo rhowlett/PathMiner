@@ -1,0 +1,21 @@
+{
+  "manifest_version": 1,
+  "created": "2026-08-26",
+  "baseline": "PathMiner v0.13 supplied archive",
+  "original_archive": {
+    "name": "pathminer.zip",
+    "sha256": "e3e71e87aae9ca3b4ba99c4cf9d6438e0fddfcea2fd65025062380bdc5d804f4",
+    "size_bytes": 2046304
+  },
+  "entry_point": "tools/pcb_trace_resistance.py",
+  "schema": "schema/pcb_net_selection.schema.json",
+  "expected_acceptance": {
+    "headless_without_board": "118/118",
+    "reference_board": "254/254 when the reference board is supplied/extracted",
+    "power_bank_board": "284/284 when the approved real-board fixture is supplied"
+  },
+  "baseline_command": "python3 tools/pcb_trace_resistance.py --selftest [board.kicad_pcb]",
+  "numeric_policy": "Preserve existing vector tolerances; no relaxation without an ADR and golden-output review.",
+  "source_git_metadata": false,
+  "bootstrap_rule": "Initialize a local repository and create an immutable baseline commit before opening worktrees."
+}
