@@ -1,0 +1,43 @@
+{
+  "_meta": {
+    "version": "0.1",
+    "description": "Net selection for the PCB resistance report.",
+    "board": "Symbol_Testing.kicad_pcb",
+    "generated": "2026-08-24T03:15:23"
+  },
+  "select": [
+    "*"
+  ],
+  "ignore": [],
+  "options": {
+    "sections": {
+      "assumptions": true,
+      "stackup": false,
+      "selection": false,
+      "summary": true,
+      "detail": true,
+      "notes": true
+    },
+    "hole_convention": "bit",
+    "length_convention": "centre",
+    "outer_plating_adds": true,
+    "zone_model": "ladder",
+    "plating_um": 18.0,
+    "mesh_pitch_mm": 0.125,
+    "ambient_c": 25.0,
+    "current_a": 1.0,
+    "signal_voltage_v": 3.3
+  },
+  "nets": {
+    "/SDA": {
+      "pairs": "from-source",
+      "source": "Z1.SDA",
+      "pair_overrides": {
+        "Z1.SDA>Z3.SDA": {
+          "voltage_v": 5.0,
+          "current_a": 2.5
+        }
+      }
+    }
+  }
+}

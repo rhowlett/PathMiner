@@ -1,0 +1,392 @@
+{
+  "package": "PathMiner_Claude_Parallel_Work_Package",
+  "package_version": "1.0",
+  "created": "2026-08-26",
+  "files": [
+    {
+      "path": "CLAUDE_START_HERE.md",
+      "size_bytes": 2317,
+      "sha256": "e661c84aabf4f6e1601d9bd5901434f16a59fb24fb668bcaf8f33c3b7a710928"
+    },
+    {
+      "path": "validate_package.py",
+      "size_bytes": 1001,
+      "sha256": "798ec0f40697fdf1b042a6a7af0f338c8f74a9546ceb29fa2ad28a50c92b097d"
+    },
+    {
+      "path": "workspace/.ai/coordination/COORDINATOR_PROMPT.md",
+      "size_bytes": 897,
+      "sha256": "3f08c5294ffc1efade32f90da2b4b90867d45a22b3524fdc8eb4879d56665c5c"
+    },
+    {
+      "path": "workspace/.ai/coordination/DECISION_LOG.md",
+      "size_bytes": 111,
+      "sha256": "2817abd4f26910a9b344f07f955d37f7539e09c22fe03d50310c946936606a1e"
+    },
+    {
+      "path": "workspace/.ai/coordination/HANDOFF_SCHEMA.json",
+      "size_bytes": 3871,
+      "sha256": "80db9742e1b43cf5ebe61674af25b634ccdf51154a2d5e0e09b7064f872cb377"
+    },
+    {
+      "path": "workspace/.ai/coordination/HANDOFF_TEMPLATE.md",
+      "size_bytes": 645,
+      "sha256": "564298aa0deb1bd362475b5497aa064d1886484a5359430bf0d7b6ebeffbb2be"
+    },
+    {
+      "path": "workspace/.ai/coordination/INTEGRATION_PLAYBOOK.md",
+      "size_bytes": 1447,
+      "sha256": "9d5015d95fd0f459958f5f589055270a304af22f090a0fe4b7ba984b60b3d195"
+    },
+    {
+      "path": "workspace/.ai/coordination/SESSION_EXECUTION_RULES.md",
+      "size_bytes": 1714,
+      "sha256": "91c5de52cf5e231d28ef06d2feba9b8056c25d76e41f952d9bb8a70890e02770"
+    },
+    {
+      "path": "workspace/.ai/coordination/SESSION_STATUS.csv",
+      "size_bytes": 3359,
+      "sha256": "e307288b41bb33ba583f62ee1426d8226c5756437e9ef37d9aa91086256cf081"
+    },
+    {
+      "path": "workspace/.ai/handoffs/.gitkeep",
+      "size_bytes": 1,
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+    },
+    {
+      "path": "workspace/.ai/planning/PathMiner_Implementation_Punch_List.md",
+      "size_bytes": 23376,
+      "sha256": "6f507a4f3740cf76973a52ee803492621e6fff1d9bed467b6aa4c13d8e51a52d"
+    },
+    {
+      "path": "workspace/.ai/planning/PathMiner_Project_Specification.md",
+      "size_bytes": 58618,
+      "sha256": "fb7ba4b00c3c5e69958e6065a0282363a4ca363a4728f90aeaef41c78e566996"
+    },
+    {
+      "path": "workspace/.ai/planning/PathMiner_Refactor_and_Development_Plan.md",
+      "size_bytes": 38454,
+      "sha256": "22ba1b7d843aec631692b7a6829e47dd6f2178220a1115c85afb42d97e8d9186"
+    },
+    {
+      "path": "workspace/.ai/planning/SESSION_INDEX.md",
+      "size_bytes": 5423,
+      "sha256": "72e6afb7f321f93b1a8d648a71d5440bc63940e62499fe2870b8a2f11b61b5f0"
+    },
+    {
+      "path": "workspace/.ai/prompts/claude/Session_01_Claude_Haiku-4.5_medium.md",
+      "size_bytes": 5921,
+      "sha256": "9f54ee9e136ff3ac793e4bf89b126f1af01dd95852b8ff2231facbce1c570a59"
+    },
+    {
+      "path": "workspace/.ai/prompts/claude/Session_02_Claude_Sonnet-4.6_high.md",
+      "size_bytes": 5775,
+      "sha256": "0f1ce522e05f724b275a0049953040b3a96ca4a2233322e4fbfa49e3f80af485"
+    },
+    {
+      "path": "workspace/.ai/prompts/claude/Session_03_Claude_Sonnet-5_high.md",
+      "size_bytes": 5865,
+      "sha256": "df1f71d54b8ea1d93bb9fce948ec02528149c26cb280b037dccbc6c11db70cfb"
+    },
+    {
+      "path": "workspace/.ai/prompts/claude/Session_04_Claude_Opus-4.8_extra.md",
+      "size_bytes": 5783,
+      "sha256": "6583cd4c22223db24532427ac352ed1f4eb505cdf3b3d71a908b17707168fd6b"
+    },
+    {
+      "path": "workspace/.ai/prompts/claude/Session_05_Claude_Sonnet-4.6_high.md",
+      "size_bytes": 5895,
+      "sha256": "8fba643587b2e8f3815ca1f67708c04025e9943e5690640200915ae0dd935fa5"
+    },
+    {
+      "path": "workspace/.ai/prompts/claude/Session_06_Claude_Sonnet-5_high.md",
+      "size_bytes": 5753,
+      "sha256": "66ce3ab394133781591a4f73d58f1cbb900ac4f9fa645567d961961d0fb04f54"
+    },
+    {
+      "path": "workspace/.ai/prompts/claude/Session_07_Claude_Opus-4.8_extra.md",
+      "size_bytes": 5999,
+      "sha256": "d8960b6f681d6b39520d2cb80d945e02fd5604fd0ed77f3a93d82fc603922b2f"
+    },
+    {
+      "path": "workspace/.ai/prompts/claude/Session_08_Claude_Sonnet-5_high.md",
+      "size_bytes": 5987,
+      "sha256": "7366af4fc0d91fd2a8ffd00980eb38759c385b18fd9f3b023d13e2c75cc44152"
+    },
+    {
+      "path": "workspace/.ai/prompts/claude/Session_09_Claude_Opus-4.8_high.md",
+      "size_bytes": 5845,
+      "sha256": "4259d5a47869f0c8ea0e28b1a388c36c96f26721a164e2f4452aa22c8fb7bcee"
+    },
+    {
+      "path": "workspace/.ai/prompts/claude/Session_10_Claude_Sonnet-5_high.md",
+      "size_bytes": 5793,
+      "sha256": "5771ff3268e9cda548111d914b00de0a72a79f99e10ed335f2dc4934e61642de"
+    },
+    {
+      "path": "workspace/.ai/prompts/claude/Session_11_Claude_Sonnet-5_high.md",
+      "size_bytes": 5970,
+      "sha256": "b4be8fafc47156a08dc737b3f1c32fe7d68b688faa1d83403e549962f72390ef"
+    },
+    {
+      "path": "workspace/.ai/prompts/claude/Session_12_Claude_Sonnet-4.6_high.md",
+      "size_bytes": 5759,
+      "sha256": "8f2fa01c422b883f6a02b0b773553d0b5a39fb2a123ddaadb5f5ccfc2c8b838d"
+    },
+    {
+      "path": "workspace/.ai/prompts/claude/Session_13_Claude_Opus-4.8_extra.md",
+      "size_bytes": 5941,
+      "sha256": "83e60ce43f95a486ee2740c7b46dfc5c9f799e68436b633af9d80f378433a808"
+    },
+    {
+      "path": "workspace/.ai/prompts/claude/Session_14_Claude_Sonnet-5_high.md",
+      "size_bytes": 5806,
+      "sha256": "9649e55e214fc248903c3619df3b7cc6ec93bffaadc79f85d5b27221b95d9f5b"
+    },
+    {
+      "path": "workspace/.ai/prompts/claude/Session_15_Claude_Sonnet-4.6_high.md",
+      "size_bytes": 5774,
+      "sha256": "ddf129dab651bdbe6f9d81f5fce7a09553117094c8779fb5ddc56f0142581cef"
+    },
+    {
+      "path": "workspace/.ai/prompts/claude/Session_16_Claude_Sonnet-5_high.md",
+      "size_bytes": 6006,
+      "sha256": "eb11d92e97b86fd7d5b97bcd64954e7ac4d593c5bf73cf2d4e9a4efaaa624548"
+    },
+    {
+      "path": "workspace/.ai/prompts/claude/Session_17_Claude_Sonnet-5_high.md",
+      "size_bytes": 5957,
+      "sha256": "9c8891b5d36a9eb8e1ddee6045544786c2ebe9b9794376268b731542369896fb"
+    },
+    {
+      "path": "workspace/.ai/prompts/claude/Session_18_Claude_Opus-4.8_extra.md",
+      "size_bytes": 5982,
+      "sha256": "bae9d252eaf56fe89465180c6961aab2c934c2cd775564d2d884ad634ddac917"
+    },
+    {
+      "path": "workspace/.ai/prompts/claude/Session_19_Claude_Fable-5_high.md",
+      "size_bytes": 5832,
+      "sha256": "e18960af9dc2e3010a8906d552ed05cb7b56059c590df57aa0a066b88b47bd0b"
+    },
+    {
+      "path": "workspace/.ai/prompts/claude/Session_20_Claude_Sonnet-5_high.md",
+      "size_bytes": 6074,
+      "sha256": "2b0d462a6353a1fd69822d44166737559f7cb61c9e8bb1cdc13fd69511c995d5"
+    },
+    {
+      "path": "workspace/.ai/prompts/claude/Session_21_Claude_Opus-4.8_max.md",
+      "size_bytes": 6126,
+      "sha256": "0ace8a209747272ef865adc45096383995859ea625871190162c6cf101e8eb7a"
+    },
+    {
+      "path": "workspace/.ai/prompts/claude/Session_22_Claude_Opus-4.8_high.md",
+      "size_bytes": 5978,
+      "sha256": "63fa9e425d3489a2de92da0e75cfcd74c153eca890be92c08f2250fed4bf0eb8"
+    },
+    {
+      "path": "workspace/.ai/prompts/claude/Session_23_Claude_Sonnet-4.6_high.md",
+      "size_bytes": 5651,
+      "sha256": "146c8a57fc3aec979800dca463d49229c9b7ffdd11175769389752f4dd0ee4b4"
+    },
+    {
+      "path": "workspace/.ai/prompts/claude/Session_24_Claude_Opus-4.8_max.md",
+      "size_bytes": 5885,
+      "sha256": "3b13c1a3512d7d90b17027bf93cce9747fa88e2e2d37217e893bc7f497775c4b"
+    },
+    {
+      "path": "workspace/.ai/prompts/claude/Session_25_Claude_Opus-4.8_max.md",
+      "size_bytes": 5892,
+      "sha256": "c063b9d48edd90c85f162c832bda27ae505196923cf805603d2c2d718626dbfc"
+    },
+    {
+      "path": "workspace/.ai/prompts/claude/Session_26_Claude_Opus-4.8_high.md",
+      "size_bytes": 5816,
+      "sha256": "fb4d21f5320ceb74ee28c0eee5d4f2062f014f798c6258d540682a23051b15cd"
+    },
+    {
+      "path": "workspace/.ai/prompts/claude/Session_27_Claude_Opus-4.8_max.md",
+      "size_bytes": 5891,
+      "sha256": "e3b61f8f282827efadda9cdbff59f1d6f9f523a8865849bd9b54b95121ed532a"
+    },
+    {
+      "path": "workspace/.ai/prompts/claude/Session_28_Claude_Opus-4.8_max.md",
+      "size_bytes": 6101,
+      "sha256": "dc08c58d2ceafb8003227c0575b6d64e7c7c72377b87c3df73727b01bf529478"
+    },
+    {
+      "path": "workspace/.ai/prompts/claude/Session_29_Claude_Opus-4.8_max.md",
+      "size_bytes": 5876,
+      "sha256": "d84e955e6bd94fed9ba757ec6204629ad70ab662786432783e13ffb542964889"
+    },
+    {
+      "path": "workspace/.ai/prompts/claude/Session_30_Claude_Opus-4.8_max.md",
+      "size_bytes": 6149,
+      "sha256": "f2d3b67b63a11d178da2f3d9f8a6486fdecd7e7e7e3998bbdfefc580aac77a92"
+    },
+    {
+      "path": "workspace/.ai/prompts/claude/Session_31_Claude_Opus-4.8_max.md",
+      "size_bytes": 6094,
+      "sha256": "a9c55ebc76143b15bdedb95b1856ca268cd671ea509870c0d3b02905f7b7de9a"
+    },
+    {
+      "path": "workspace/.ai/prompts/claude/Session_32_Claude_Opus-4.8_high.md",
+      "size_bytes": 5874,
+      "sha256": "b9918b3151a80c23f5106b085f241e45a30d4c51889d29c19c9e2485c1296551"
+    },
+    {
+      "path": "workspace/.ai/prompts/claude/Session_33_Claude_Opus-4.8_max.md",
+      "size_bytes": 5903,
+      "sha256": "cd17095997fb96da38c5b3470db7bcc5b33839b225d81bc62bfc9dd2a0087a98"
+    },
+    {
+      "path": "workspace/.ai/prompts/claude/Session_34_Claude_Opus-4.8_max.md",
+      "size_bytes": 6078,
+      "sha256": "2898d88a938df7ddfb9dd170d17d3c29cfe5dc59237ad79f90d939283b566a97"
+    },
+    {
+      "path": "workspace/.ai/reference/BASELINE_MANIFEST.json",
+      "size_bytes": 968,
+      "sha256": "158d62eaed43e1d53416f3b0e56a5b9d9295e256bbfefd56109817f7c8ae002e"
+    },
+    {
+      "path": "workspace/.ai/reference/PACKAGE_BUILD_VALIDATION.md",
+      "size_bytes": 738,
+      "sha256": "1082c73b27feff63a47dc7ac5534f19443e0897b20d32b2ab69515666cd843d1"
+    },
+    {
+      "path": "workspace/.ai/reference/REPO_MAP.md",
+      "size_bytes": 1833,
+      "sha256": "296748824a8d2d1f6d41b9c75bee85d198ae9e094025c56f967f802f802579cd"
+    },
+    {
+      "path": "workspace/.ai/reference/pathminer.md",
+      "size_bytes": 55817,
+      "sha256": "3071a51c3397dd190df57aec775cea6d0d4fc7de028f12ecbe8ee40ff7d8180a"
+    },
+    {
+      "path": "workspace/CLAUDE.md",
+      "size_bytes": 778,
+      "sha256": "9cdf52ca65ed6fa39317db50aae67bd574d004e8284d1189ed23d27ab419da3c"
+    },
+    {
+      "path": "workspace/README.md",
+      "size_bytes": 4193,
+      "sha256": "b949e76d050bed0b2cb66a5016dc227a78966c7aeebebed44f9414490a14929d"
+    },
+    {
+      "path": "workspace/ai_reference/code_samples/.gitkeep",
+      "size_bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "workspace/ai_reference/doc_samples/PACK_P_report.md",
+      "size_bytes": 15903,
+      "sha256": "4420a2886a84cf1bb9a54ef252e210e4086b23b9ee1bac35e555e0ed71cedeac"
+    },
+    {
+      "path": "workspace/ai_reference/doc_samples/PACK_P_report.pdf",
+      "size_bytes": 93059,
+      "sha256": "34bded158d831ee1e922a8c3b809d19bd841cb17c77b6c40551a136cf63ea508"
+    },
+    {
+      "path": "workspace/ai_reference/doc_samples/resistance_report.md",
+      "size_bytes": 12967,
+      "sha256": "b2f5c39d815eabede3fd859c4115cb27519acbdbefe3b9e9d2a6fe74f8f6a2c0"
+    },
+    {
+      "path": "workspace/ai_reference/examples/net_selection_PACK.json",
+      "size_bytes": 1959,
+      "sha256": "ff8e5ec8f10975670cb65495d2fe5f698ce803e1d7b4f295cfc6686c5aa7d111"
+    },
+    {
+      "path": "workspace/ai_reference/examples/nets.example.json",
+      "size_bytes": 888,
+      "sha256": "b1ad9ac7fb8f415a856c8bdb172b50debc538a0798747c00662ff1622e329434"
+    },
+    {
+      "path": "workspace/ai_reference/kicad_project_example/Ref_PowerBank_injoinic_IP5385_v0.8.zip",
+      "size_bytes": 1830677,
+      "sha256": "4ff1ae3cb6b3753246902b48f7ddf22bc54f4693abb9a63fececc62f673391a6"
+    },
+    {
+      "path": "workspace/core/.gitkeep",
+      "size_bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "workspace/documents/change_log.md",
+      "size_bytes": 2968,
+      "sha256": "121950a793f19f47ed2af34bb720e6b03b8f62fc182004624635cfdaa0976469"
+    },
+    {
+      "path": "workspace/documents/help/.gitkeep",
+      "size_bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "workspace/documents/library_refactor_recommendations.md",
+      "size_bytes": 13701,
+      "sha256": "5f3b97d2aaab9c33f825499df3f0906ee73fd87561b933db54f2dfbffe158063"
+    },
+    {
+      "path": "workspace/documents/path_capture_design.md",
+      "size_bytes": 24384,
+      "sha256": "a708e6829f9d9fad7168eb030fb509cb4e233b37d027aa329715f4e7d248c28b"
+    },
+    {
+      "path": "workspace/documents/user_guides/.gitkeep",
+      "size_bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "workspace/documents/via_tab_design_contract.md",
+      "size_bytes": 30065,
+      "sha256": "cb9d6cede276a07dafb2fd1f67a7f9e416bd02d3daf0e03bcd93aaccdab350bb"
+    },
+    {
+      "path": "workspace/schema/pcb_net_selection.schema.json",
+      "size_bytes": 5215,
+      "sha256": "175e6b2e4852c04d6b5aec65f7192a5bd32eba170330fd51c021d71216f7ff43"
+    },
+    {
+      "path": "workspace/tests/.gitkeep",
+      "size_bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "workspace/tools/pcb_trace_resistance.py",
+      "size_bytes": 249220,
+      "sha256": "7fe1059d4d16a410d86c3aae000a84078a0f99ad216da186ad3ac7b286163316"
+    },
+    {
+      "path": "workspace/ui/.gitkeep",
+      "size_bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "workspace/ui/common/.gitkeep",
+      "size_bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "workspace/ui/dialogs/.gitkeep",
+      "size_bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "workspace/ui/tabs/.gitkeep",
+      "size_bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "workspace/ui/themes/.gitkeep",
+      "size_bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "workspace/ui/widgets/.gitkeep",
+      "size_bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ]
+}

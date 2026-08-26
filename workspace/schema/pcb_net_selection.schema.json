@@ -1,0 +1,201 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://example.invalid/pcb-net-selection.schema.json",
+  "title": "PCB resistance report net selection",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "_meta"
+  ],
+  "properties": {
+    "_meta": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version"
+      ],
+      "properties": {
+        "version": {
+          "type": "string",
+          "pattern": "^v?\\d+\\.\\d+(\\.\\d+)?$"
+        },
+        "description": {
+          "type": "string"
+        },
+        "board": {
+          "type": "string"
+        },
+        "generated": {
+          "type": "string"
+        }
+      }
+    },
+    "select": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Net names or glob patterns to include. '*' means every routed net. Omitted or empty is treated as '*'."
+    },
+    "ignore": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Net names or glob patterns to exclude. Applied after select, so ignore always wins."
+    },
+    "_available_nets": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Informational only: nets found on the board when this template was generated. Ignored when reading."
+    },
+    "options": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "plating_um": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 1000
+        },
+        "hole_convention": {
+          "enum": [
+            "bit",
+            "finished"
+          ]
+        },
+        "length_convention": {
+          "enum": [
+            "centre",
+            "facing",
+            "outer"
+          ]
+        },
+        "outer_plating_adds": {
+          "type": "boolean"
+        },
+        "zone_model": {
+          "enum": [
+            "none",
+            "ladder",
+            "mesh"
+          ]
+        },
+        "mesh_pitch_mm": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 5
+        },
+        "ambient_c": {
+          "type": "number",
+          "minimum": -273.15
+        },
+        "current_a": {
+          "type": "number",
+          "minimum": 0
+        },
+        "pairs": {
+          "enum": [
+            "all",
+            "first-two",
+            "from-source"
+          ]
+        },
+        "max_pairs_warn": {
+          "type": "number",
+          "minimum": 1
+        },
+        "signal_voltage_v": {
+          "type": "number",
+          "description": "Default source voltage; the report shows the endpoint voltage after the I*R drop."
+        },
+        "sections": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Which report sections to emit.",
+          "properties": {
+            "assumptions": {
+              "type": "boolean"
+            },
+            "stackup": {
+              "type": "boolean"
+            },
+            "selection": {
+              "type": "boolean"
+            },
+            "summary": {
+              "type": "boolean"
+            },
+            "detail": {
+              "type": "boolean"
+            },
+            "notes": {
+              "type": "boolean"
+            }
+          }
+        }
+      }
+    },
+    "nets": {
+      "type": "object",
+      "description": "Per-net overrides, keyed by net name. Decides which pad pairs are reported for that net.",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "pairs": {
+            "enum": [
+              "all",
+              "first-two",
+              "from-source",
+              "explicit"
+            ]
+          },
+          "source": {
+            "type": "string",
+            "description": "Terminal name (REF.PIN) used as the source for 'from-source'."
+          },
+          "explicit_pairs": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[^>]+>[^>]+$"
+            },
+            "description": "Pairs written as 'Z1.SDA>Z3.SDA'."
+          },
+          "pair_overrides": {
+            "type": "object",
+            "description": "Per-pair voltage and current, keyed 'Z1.SDA>Z2.SDA'. Omitted values fall back to the operating-condition defaults.",
+            "additionalProperties": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "voltage_v": {
+                  "type": "number"
+                },
+                "current_a": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "zone_model": {
+                  "enum": [
+                    "none",
+                    "ladder",
+                    "mesh"
+                  ]
+                },
+                "mesh_pitch_mm": {
+                  "type": "number",
+                  "exclusiveMinimum": 0,
+                  "maximum": 5
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

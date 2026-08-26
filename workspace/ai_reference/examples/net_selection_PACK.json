@@ -1,0 +1,88 @@
+{
+  "_meta": {
+    "version": "0.1",
+    "description": "Net selection for the PCB resistance report.",
+    "board": "Ref_PowerBank_injoinic_IP5385_v0.8.kicad_pcb",
+    "generated": "2026-08-24T20:24:54"
+  },
+  "select": [
+    "/Reference Design/PACK_P",
+    "GNDREF"
+  ],
+  "ignore": [
+    "GNDREF"
+  ],
+  "options": {
+    "sections": {
+      "assumptions": true,
+      "stackup": true,
+      "selection": true,
+      "summary": true,
+      "detail": true,
+      "notes": true
+    },
+    "hole_convention": "bit",
+    "length_convention": "centre",
+    "outer_plating_adds": true,
+    "zone_model": "ladder",
+    "plating_um": 18.0,
+    "mesh_pitch_mm": 0.125,
+    "ambient_c": 25.0,
+    "current_a": 1.0,
+    "signal_voltage_v": 3.3
+  },
+  "nets": {
+    "/Reference Design/PACK_P": {
+      "pairs": "from-source",
+      "source": "JP1.B",
+      "pair_overrides": {
+        "JP1.B>C15.1": {
+          "voltage_v": 8.0,
+          "current_a": 2.0
+        },
+        "JP1.B>C16.1": {
+          "voltage_v": 8.0,
+          "current_a": 2.0
+        },
+        "JP1.B>C17.1": {
+          "voltage_v": 8.0,
+          "current_a": 2.0
+        },
+        "JP1.B>C39.2": {
+          "voltage_v": 8.0,
+          "current_a": 2.0
+        },
+        "JP1.B>C44.1": {
+          "voltage_v": 8.0,
+          "current_a": 2.0
+        },
+        "JP1.B>CP2.1": {
+          "voltage_v": 8.0,
+          "current_a": 2.0
+        },
+        "JP1.B>R8.1": {
+          "voltage_v": 8.0,
+          "current_a": 8.0,
+          "zone_model": "mesh",
+          "mesh_pitch_mm": 0.125
+        },
+        "JP1.B>U11.D": {
+          "voltage_v": 8.0,
+          "current_a": 8.0
+        },
+        "JP1.B>U2.BAT": {
+          "voltage_v": 8.0,
+          "current_a": 0.0001
+        },
+        "JP1.B>U2.CSP2": {
+          "voltage_v": 8.0,
+          "current_a": 0.0001
+        },
+        "JP1.B>U9.D": {
+          "voltage_v": 8.0,
+          "current_a": 8.0
+        }
+      }
+    }
+  }
+}
