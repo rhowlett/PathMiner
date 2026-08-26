@@ -1,0 +1,111 @@
+#!/usr/bin/env python3
+"""Validate and launch the assigned Claude model for a PathMiner session."""
+
+from __future__ import annotations
+
+import argparse
+import os
+import shlex
+import subprocess
+import sys
+from pathlib import Path
+
+from pathminer_ai_common import (
+    find_prompt,
+    find_workspace,
+    normalize_session,
+    prompt_assignment,
+    python_environment,
+)
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("session", help="session number, for example 01")
+    parser.add_argument(
+        "--skip-selftest",
+        action="store_true",
+        help="skip the v0.13 self-test during preflight",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="run preflight and print the Claude command without launching",
+    )
+    args = parser.parse_args()
+
+    try:
+        session = normalize_session(args.session)
+        workspace = find_workspace()
+        prompt = find_prompt(workspace, session)
+        assignment = prompt_assignment(prompt)
+    except (RuntimeError, ValueError, OSError) as exc:
+        print(f"FAIL  {exc}", file=sys.stderr)
+        return 1
+
+    script_dir = Path(__file__).resolve().parent
+    sanity = script_dir / "sanity_check"
+    sanity_command = [sys.executable, str(sanity), session]
+    if args.skip_selftest:
+        sanity_command.append("--skip-selftest")
+    sanity_result = subprocess.run(sanity_command, cwd=str(workspace), check=False)
+    if sanity_result.returncode != 0:
+        print("Claude was not started because sanity_check failed.", file=sys.stderr)
+        return sanity_result.returncode
+
+    model_id = assignment["model_id"]
+    if not model_id:
+        print(f"FAIL  Unsupported model label: {assignment['model']}", file=sys.stderr)
+        return 1
+
+    prompt_relative = prompt.relative_to(workspace).as_posix()
+    initial_prompt = f"""Read `CLAUDE.md` and `{prompt_relative}` completely. This is PathMiner Session {session} and you are its assigned implementing writer.
+
+Before changing files, report the active model, current branch, exact base commit, owned write scope, prerequisite state, required tests, and any blocker. Do not start another session or expand scope. If the preflight is clear, execute the assigned session and produce both required handoff files. Only the coordinator may mark the session integrated."""
+
+    command = [
+        "claude",
+        "--model",
+        model_id,
+        "--name",
+        f"pathminer-session-{session}-claude",
+    ]
+
+    # Haiku 4.5 does not implement Claude's adaptive effort control. Its prompt
+    # effort remains a planning posture and is intentionally not passed to CLI.
+    if assignment["model"] != "Haiku-4.5":
+        cli_effort = assignment["cli_effort"]
+        if not cli_effort:
+            print(
+                f"FAIL  Unsupported effort label: {assignment['effort']}",
+                file=sys.stderr,
+            )
+            return 1
+        command.extend(["--effort", cli_effort])
+    else:
+        print(
+            "NOTE  Haiku 4.5 has no CLI effort control; "
+            f"using the prompt's {assignment['effort']} planning posture."
+        )
+
+    command.append(initial_prompt)
+    print()
+    print(f"Launching Session {session}")
+    print(f"Workspace : {workspace}")
+    print(f"Prompt    : {prompt_relative}")
+    print(f"Model     : {model_id}")
+    print(f"Command   : {shlex.join(command[:-1])} <session-initial-prompt>")
+
+    if args.dry_run:
+        print("DRY RUN: Claude was not started.")
+        return 0
+
+    _, environment = python_environment(workspace)
+    os.chdir(str(workspace))
+    os.execvpe(command[0], command, environment)
+    return 127
+
+
+if __name__ == "__main__":
+    sys.exit(main())
+
