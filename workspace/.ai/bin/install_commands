@@ -1,0 +1,78 @@
+#!/usr/bin/env python3
+"""Install user-level PathMiner AI command symlinks."""
+
+from __future__ import annotations
+
+import argparse
+import os
+import shutil
+import sys
+from pathlib import Path
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--bin-dir",
+        default=str(Path.home() / ".local" / "bin"),
+        help="installation directory, default: ~/.local/bin",
+    )
+    parser.add_argument(
+        "--lib-dir",
+        default=str(Path.home() / ".local" / "share" / "pathminer-ai"),
+        help="script-copy directory, default: ~/.local/share/pathminer-ai",
+    )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="replace existing start_claude and sanity_check symlinks",
+    )
+    args = parser.parse_args()
+
+    source_dir = Path(__file__).resolve().parent
+    destination = Path(args.bin_dir).expanduser().resolve()
+    library = Path(args.lib_dir).expanduser().resolve()
+    destination.mkdir(parents=True, exist_ok=True)
+    library.mkdir(parents=True, exist_ok=True)
+
+    for name in ("pathminer_ai_common.py", "sanity_check", "start_claude"):
+        source = source_dir / name
+        installed = library / name
+        shutil.copy2(source, installed)
+        if name in {"sanity_check", "start_claude"}:
+            installed.chmod(installed.stat().st_mode | 0o111)
+        print(f"COPY  {source} -> {installed}")
+
+    for name in ("sanity_check", "start_claude"):
+        source = library / name
+        target = destination / name
+        if target.is_symlink() and target.resolve() == source.resolve():
+            print(f"OK    {target} already points to {source}")
+            continue
+        if target.exists() or target.is_symlink():
+            if not args.force:
+                print(
+                    f"ERROR {target} already exists; use --force only after verifying it",
+                    file=sys.stderr,
+                )
+                return 1
+            if target.is_dir() and not target.is_symlink():
+                print(f"ERROR {target} is a directory and will not be replaced", file=sys.stderr)
+                return 1
+            target.unlink()
+        target.symlink_to(source)
+        print(f"LINK  {target} -> {source}")
+
+    path_entries = os.environ.get("PATH", "").split(os.pathsep)
+    if str(destination) not in path_entries:
+        print()
+        print("Add this line to ~/.zshrc, then open a new shell:")
+        print('export PATH="$HOME/.local/bin:$PATH"')
+    else:
+        print()
+        print("Commands are ready: sanity_check 01; start_claude 01")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

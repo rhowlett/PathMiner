@@ -1,0 +1,217 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "PathMiner AI session handoff",
+  "type": "object",
+  "required": [
+    "session",
+    "ai",
+    "model",
+    "effort",
+    "status",
+    "base_commit",
+    "branch",
+    "punch_items",
+    "files",
+    "tests",
+    "decisions",
+    "known_issues",
+    "dependent_session_impact"
+  ],
+  "properties": {
+    "session": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 34
+    },
+    "ai": {
+      "enum": [
+        "ChatGPT",
+        "Claude"
+      ]
+    },
+    "model": {
+      "type": "string",
+      "minLength": 1
+    },
+    "speed": {
+      "enum": [
+        "standard",
+        "fast",
+        "not-applicable"
+      ]
+    },
+    "effort": {
+      "type": "string",
+      "minLength": 1
+    },
+    "status": {
+      "enum": [
+        "READY_FOR_REVIEW",
+        "BLOCKED",
+        "PARTIAL"
+      ]
+    },
+    "base_commit": {
+      "type": "string",
+      "minLength": 1
+    },
+    "final_commit": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "branch": {
+      "type": "string",
+      "minLength": 1
+    },
+    "patch_checksum": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "punch_items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "role",
+          "status",
+          "evidence"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "implemented",
+              "verified",
+              "closed",
+              "open"
+            ]
+          },
+          "evidence": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "files": {
+      "type": "object",
+      "required": [
+        "added",
+        "modified",
+        "removed"
+      ],
+      "properties": {
+        "added": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "modified": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "removed": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "apis_changed": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "schemas_changed": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "compatibility_consequences": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "tests": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "command",
+          "exit_code",
+          "result"
+        ],
+        "properties": {
+          "command": {
+            "type": "string"
+          },
+          "exit_code": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "result": {
+            "type": "string"
+          },
+          "runtime_seconds": {
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        }
+      }
+    },
+    "decisions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "assumptions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "deviations": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "known_issues": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "dependent_session_impact": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "recommended_next_action": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": false
+}

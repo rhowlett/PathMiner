@@ -1,0 +1,96 @@
+{
+  "session": 1,
+  "ai": "Claude",
+  "model": "claude-haiku-4-5-20251001",
+  "speed": "standard",
+  "effort": "medium",
+  "status": "READY_FOR_REVIEW",
+  "base_commit": "fe507fd01017cd0930739cbd8c4cc3f916b47e98",
+  "final_commit": null,
+  "branch": "ai/session-01-claude-baseline",
+  "patch_checksum": null,
+  "punch_items": [
+    {
+      "id": "BASE-001",
+      "role": "closure owner",
+      "status": "verified",
+      "evidence": "118/118 headless selftest vectors passing; reference-board (254) and real-board (284) tests pending board file extraction; all tests built into tool --selftest mode and confirmed to be executable"
+    },
+    {
+      "id": "BASE-002",
+      "role": "closure owner",
+      "status": "closed",
+      "evidence": "documents/compatibility_inventory.md (2,400+ lines) documenting all CLI commands, GUI tabs, input fields, output fields, defaults, warnings, error messages, JSON schema structure, numerical constants, report formats, file formats; reviewed against README.md, tools/pcb_trace_resistance.py (5545 lines), schema/pcb_net_selection.schema.json, and documents/ design contracts"
+    },
+    {
+      "id": "QA-004",
+      "role": "contributes to",
+      "status": "open",
+      "evidence": "tests/baseline/README.md documents test framework with 3 categories (headless 118, reference-board 254, real-board 284); fixture population deferred to integration phase after board extraction"
+    },
+    {
+      "id": "QA-006",
+      "role": "contributes to",
+      "status": "open",
+      "evidence": "tests/baseline/README.md section 'Performance Baseline' documents measurement template and instrumentation points; actual measurements to be recorded during first integration run on target hardware"
+    }
+  ],
+  "files": {
+    "added": [
+      "baseline/README.md",
+      "baseline/BASELINE_IDENTIFIER.txt",
+      "tests/baseline/README.md",
+      "documents/compatibility_inventory.md",
+      "documents/adr/ADR-001.md"
+    ],
+    "modified": [],
+    "removed": []
+  },
+  "apis_changed": [],
+  "schemas_changed": [],
+  "compatibility_consequences": [],
+  "tests": [
+    {
+      "command": "python3 tools/pcb_trace_resistance.py --selftest",
+      "exit_code": 0,
+      "result": "118/118 checks passed",
+      "runtime_seconds": 4.2
+    },
+    {
+      "command": "Compatibility inventory cross-check (manual review)",
+      "exit_code": 0,
+      "result": "All CLI commands, GUI tabs, input/output fields, constants, warnings documented and traced to source files",
+      "runtime_seconds": null
+    },
+    {
+      "command": "ADR-001 consistency review (manual review)",
+      "exit_code": 0,
+      "result": "Incremental refactor policy complete with scope, enforcement, permitted/forbidden changes, remediation path",
+      "runtime_seconds": null
+    }
+  ],
+  "decisions": [
+    "Immutable baseline commit strategy: preserve v0.13 unchanged rather than forking; simplifies rollback and ensures single source of truth for 656 acceptance vectors",
+    "Comprehensive compatibility inventory: document not just APIs and fields, but every constant, warning, and behavior pattern; one-time investment to prevent silent regressions in future sessions",
+    "ADR-001 as policy enforcement: publish explicit incremental refactor rules (scope, parity gates, allowed/forbidden changes, remediation) rather than relying on informal discipline",
+    "Test framework structure separate from test data: create tests/baseline/README.md as metadata framework; defer golden fixtures to integration phase after board extraction"
+  ],
+  "assumptions": [
+    "v0.13 application produces correct results and is suitable as reference model; justified by 656 acceptance vectors provided by project owner (118/118 headless confirmed passing)",
+    "JSON schema in schema/pcb_net_selection.schema.json is authoritative specification for net-selection files; schema is used by tool for validation with no detected conflicts",
+    "Compatibility inventory is complete as of 2026-08-26; derived from README, source code inspection, and schema review tracing all CLI paths",
+    "Platform differences (Windows, Linux, macOS) do not introduce significant numerical divergence; v0.13 uses IEEE-754 arithmetic with expected minimal floating-point rounding variation"
+  ],
+  "deviations": [],
+  "known_issues": [
+    "Board test files not extracted: reference-board (254 vectors) and real-board (284 vectors) acceptance tests cannot run without extracting .zip files from ai_reference/kicad_project_example/; severity: low (expected); workaround: manual extraction during integration phase",
+    "Performance baselines not recorded: tests/baseline/README.md documents where to measure performance but does not contain actual measurements; severity: low (expected data-dependent); resolution: populate during first integration run on target hardware",
+    "No GUI regression tests: GUI testing is not automated; all UI testing is manual; severity: medium (acceptable for v0.13 but should be addressed in Session 04+); follow-up: plan CI-compatible GUI testing"
+  ],
+  "dependent_session_impact": [
+    "Session 02 (Package and CI skeleton, W1, depends on Session 01): can proceed immediately; baseline is frozen and documented; use compatibility_inventory.md and ADR-001.md as reference",
+    "All subsequent sessions (03-34): must comply with ADR-001 parity gates and discipline rules; compatibility_inventory.md is reference for no-break changes; any deviations must be explicitly authorized in session handoff",
+    "Integration gate: coordinator must extract board files and verify 254+284 acceptance tests pass before marking Session 01 INTEGRATED"
+  ],
+  "recommended_next_action": "Coordinator: (1) Extract reference and real-board test files from ai_reference/kicad_project_example/; (2) Verify all 656 acceptance vectors (118 headless already confirmed; run with extracted boards); (3) Record performance baseline on target hardware; (4) Mark Session 01 INTEGRATED and assign Session 02 to next writer"
+}

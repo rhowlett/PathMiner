@@ -1,0 +1,274 @@
+#!/usr/bin/env python3
+"""Preflight a PathMiner Claude implementation session."""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import shutil
+import sys
+from pathlib import Path
+
+from pathminer_ai_common import (
+    MODEL_IDS,
+    find_prompt,
+    find_workspace,
+    git_top,
+    git_value,
+    is_relative_to,
+    normalize_session,
+    prerequisite_numbers,
+    prompt_assignment,
+    python_environment,
+    run,
+    status_rows,
+)
+
+
+class Checks:
+    def __init__(self) -> None:
+        self.failures = 0
+        self.warnings = 0
+
+    def passed(self, message: str) -> None:
+        print(f"PASS  {message}")
+
+    def warned(self, message: str) -> None:
+        self.warnings += 1
+        print(f"WARN  {message}")
+
+    def failed(self, message: str) -> None:
+        self.failures += 1
+        print(f"FAIL  {message}")
+
+
+def tail(text: str, count: int = 8) -> str:
+    lines = [line for line in text.splitlines() if line.strip()]
+    return "\n".join(lines[-count:])
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("session", nargs="?", default="01")
+    parser.add_argument(
+        "--skip-selftest",
+        action="store_true",
+        help="skip the v0.13 headless self-test",
+    )
+    args = parser.parse_args()
+
+    try:
+        session = normalize_session(args.session)
+        workspace = find_workspace()
+        prompt = find_prompt(workspace, session)
+        assignment = prompt_assignment(prompt)
+        top = git_top(workspace)
+    except (RuntimeError, ValueError, OSError) as exc:
+        print(f"FAIL  {exc}", file=sys.stderr)
+        return 1
+
+    checks = Checks()
+    print(f"PathMiner Session {session} sanity check")
+    print(f"Execution root : {workspace}")
+    print(f"Git worktree   : {top}")
+    print(f"Prompt         : {prompt.relative_to(workspace)}")
+    print(f"Model          : {assignment['model']}")
+    print(f"Effort posture : {assignment['effort']}")
+    print()
+
+    required = [
+        workspace / "CLAUDE.md",
+        workspace / ".ai" / "planning" / "SESSION_INDEX.md",
+        workspace / ".ai" / "planning" / "PathMiner_Refactor_and_Development_Plan.md",
+        workspace / ".ai" / "planning" / "PathMiner_Project_Specification.md",
+        workspace / ".ai" / "planning" / "PathMiner_Implementation_Punch_List.md",
+        workspace / ".ai" / "coordination" / "SESSION_EXECUTION_RULES.md",
+        workspace / ".ai" / "coordination" / "SESSION_STATUS.csv",
+        workspace / ".ai" / "coordination" / "HANDOFF_SCHEMA.json",
+        workspace / "tools" / "pcb_trace_resistance.py",
+        prompt,
+    ]
+    missing = [path.relative_to(workspace).as_posix() for path in required if not path.is_file()]
+    if missing:
+        checks.failed("required files missing: " + ", ".join(missing))
+    else:
+        checks.passed("required source, planning, prompt, and coordination files exist")
+
+    try:
+        branch = git_value(workspace, "branch", "--show-current")
+        expected_prefix = f"ai/session-{session}-claude-"
+        if branch.startswith(expected_prefix):
+            checks.passed(f"branch is {branch}")
+        else:
+            checks.failed(
+                f"branch is {branch or '(detached)'}; expected prefix {expected_prefix}"
+            )
+
+        base_commit = git_value(workspace, "rev-parse", "HEAD")
+        checks.passed(f"base commit is {base_commit}")
+
+        prompt_rel = prompt.relative_to(top).as_posix()
+        tracked = run(
+            ["git", "-C", str(top), "ls-files", "--error-unmatch", prompt_rel],
+            timeout=20,
+        )
+        if tracked.returncode == 0:
+            checks.passed("assigned prompt is tracked in Git")
+        else:
+            checks.failed("assigned prompt is not tracked; force-add and commit .ai first")
+
+        dirty = git_value(workspace, "status", "--short")
+        if dirty:
+            checks.failed("worktree is not clean:\n" + dirty)
+        else:
+            checks.passed("worktree is clean")
+
+        common_text = git_value(workspace, "rev-parse", "--git-common-dir")
+        common = Path(common_text)
+        if not common.is_absolute():
+            common = (workspace / common).resolve()
+        main_root = common.parent if common.name == ".git" else None
+        if main_root and top != main_root and is_relative_to(top, main_root):
+            relative_worktree = top.relative_to(main_root).as_posix()
+            visible = run(
+                [
+                    "git",
+                    "-C",
+                    str(main_root),
+                    "status",
+                    "--porcelain",
+                    "--untracked-files=normal",
+                    "--",
+                    relative_worktree,
+                ],
+                timeout=20,
+            )
+            if visible.returncode != 0:
+                checks.warned("could not verify nested-worktree exclusion in main checkout")
+            elif visible.stdout.strip():
+                checks.failed(
+                    "nested worktree is visible to the main checkout; add "
+                    "pathminer-session-*/ to the main .git/info/exclude"
+                )
+            else:
+                checks.passed("nested worktree is excluded from the main checkout")
+    except RuntimeError as exc:
+        checks.failed(f"Git check failed: {exc}")
+
+    if not assignment["model_id"]:
+        checks.failed(f"no Claude CLI model mapping for {assignment['model']}")
+    else:
+        checks.passed(f"Claude model maps to {assignment['model_id']}")
+
+    try:
+        rows = status_rows(workspace)
+        current = rows.get(int(session))
+        if current is None:
+            checks.failed("Session is missing from SESSION_STATUS.csv")
+        elif current.get("state") == "INTEGRATED" or current.get("integration_status") == "INTEGRATED":
+            checks.failed("Session is already marked integrated")
+        else:
+            checks.passed(f"session ledger state is {current.get('state', 'unknown')}")
+
+        for dependency in prerequisite_numbers(assignment):
+            row = rows.get(dependency)
+            integrated = row and (
+                row.get("state") == "INTEGRATED"
+                or row.get("integration_status") == "INTEGRATED"
+            )
+            if integrated:
+                checks.passed(f"prerequisite Session {dependency:02d} is integrated")
+            else:
+                checks.failed(f"prerequisite Session {dependency:02d} is not integrated")
+    except (OSError, ValueError) as exc:
+        checks.failed(f"session ledger check failed: {exc}")
+
+    python, python_env = python_environment(workspace)
+    version = run(
+        [python.as_posix(), "-c", "import json,sys; print(json.dumps(list(sys.version_info[:3])))"],
+        cwd=workspace,
+        env=python_env,
+    )
+    if version.returncode != 0:
+        checks.failed(f"Python cannot run: {tail(version.stderr or version.stdout)}")
+    else:
+        parsed = json.loads(version.stdout)
+        if tuple(parsed) >= (3, 10, 0):
+            checks.passed(f"Python {'.'.join(str(item) for item in parsed)} at {python}")
+        else:
+            checks.failed(
+                f"Python {'.'.join(str(item) for item in parsed)} is unsupported; use Python 3.10+"
+            )
+
+    pyside = run(
+        [
+            python.as_posix(),
+            "-c",
+            "import PySide6,PySide6.QtCore; "
+            "print(f'PySide6 {PySide6.__version__}; Qt {PySide6.QtCore.__version__}')",
+        ],
+        cwd=workspace,
+        env=python_env,
+    )
+    if pyside.returncode == 0:
+        checks.passed(pyside.stdout.strip())
+    else:
+        checks.failed("PySide6 import failed: " + tail(pyside.stderr or pyside.stdout))
+
+    pip_check = run(
+        [python.as_posix(), "-m", "pip", "check"],
+        cwd=workspace,
+        env=python_env,
+        timeout=60,
+    )
+    if pip_check.returncode == 0:
+        checks.passed(pip_check.stdout.strip() or "pip dependency check")
+    else:
+        checks.failed("pip dependency check failed: " + tail(pip_check.stderr or pip_check.stdout))
+
+    if args.skip_selftest:
+        checks.warned("v0.13 headless self-test skipped by request")
+    else:
+        selftest = run(
+            [python.as_posix(), "tools/pcb_trace_resistance.py", "--selftest"],
+            cwd=workspace,
+            env=python_env,
+            timeout=180,
+        )
+        combined = "\n".join(part for part in [selftest.stdout, selftest.stderr] if part)
+        if selftest.returncode == 0:
+            checks.passed("v0.13 headless self-test passed" + (f": {tail(combined, 1)}" if combined.strip() else ""))
+        else:
+            checks.failed("v0.13 headless self-test failed:\n" + tail(combined))
+
+    claude = shutil.which("claude")
+    if not claude:
+        checks.failed("Claude CLI is not on PATH")
+    else:
+        version_result = run([claude, "--version"], timeout=30)
+        if version_result.returncode == 0:
+            checks.passed("Claude CLI: " + (version_result.stdout or version_result.stderr).strip())
+        else:
+            checks.failed("Claude CLI version check failed")
+
+        auth = run([claude, "auth", "status", "--text"], timeout=30)
+        if auth.returncode == 0:
+            checks.passed("Claude authentication is active")
+        else:
+            checks.failed("Claude authentication check failed; run `claude auth login`")
+
+    print()
+    if checks.failures:
+        print(
+            f"SANITY CHECK FAILED: {checks.failures} failure(s), "
+            f"{checks.warnings} warning(s)"
+        )
+        return 1
+    print(f"SANITY CHECK PASSED: {checks.warnings} warning(s)")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
+
