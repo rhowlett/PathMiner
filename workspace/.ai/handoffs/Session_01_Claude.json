@@ -7,7 +7,7 @@
   "effort": "medium",
   "status": "READY_FOR_REVIEW",
   "base_commit": "fe507fd01017cd0930739cbd8c4cc3f916b47e98",
-  "final_commit": "92baa47",
+  "final_commit": "coordinator_repair_v3_pending_commit",
   "branch": "ai/session-01-claude-baseline",
   "patch_checksum": null,
   "punch_items": [
@@ -58,6 +58,16 @@
       "ai_reference/kicad_project_example/main.kicad_sch",
       "ai_reference/kicad_project_example/net_selection_PACK.json",
       "ai_reference/kicad_project_example/test_points.kicad_sch"
+    ],
+    "modified_in_repair_v3": [
+      "tests/baseline/regression_compare.py",
+      "tests/baseline/golden_fixtures_notes.md",
+      "tests/baseline/PERFORMANCE_BASELINE_v0.13.txt",
+      ".ai/reference/BASELINE_MANIFEST.json",
+      ".ai/reference/PACKAGE_BUILD_VALIDATION.md",
+      ".ai/planning/PathMiner_Implementation_Punch_List.md",
+      ".ai/planning/PathMiner_Refactor_and_Development_Plan.md",
+      ".ai/planning/PathMiner_Project_Specification.md"
     ],
     "modified": [],
     "removed": []
@@ -129,7 +139,8 @@
     "Actual golden fixtures created (not deferred): All three suites have real fixture files from actual test runs with correct normalization applied.",
     "Measured runtimes only: Wall-clock times from actual runs (not estimates): headless 0.220 s, powerbank 27.882 s, report 9.512 s.",
     "BASE-002 closed: All factual errors in compatibility_inventory.md corrected against v0.13 source in coordinator repair pass.",
-    "Model substitution recorded: Prompt specified Haiku-4.5; actual running model is claude-sonnet-4-6. Authorized by user. Recorded in both handoffs and inventory."
+    "Model substitution recorded: Prompt specified Haiku-4.5; actual running model is claude-sonnet-4-6. Authorized by user. Recorded in both handoffs and inventory.",
+    "Repair v3 (2026-08-27): Expanded normalize_path in regression_compare.py to cover workspace checkout root (dynamic) and common CI paths (/workspace, /github/workspace, /runner/work); rewrote golden_fixtures_notes.md to describe actual fixtures; updated PERFORMANCE_BASELINE_v0.13.txt with measured IP5385 report suite; removed 254/656 from .ai/planning and .ai/reference files."
   ],
   "assumptions": [
     "v0.13 acceptance vectors are authoritative; no errors assumed in test specifications.",

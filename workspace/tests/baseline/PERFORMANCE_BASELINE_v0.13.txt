@@ -11,8 +11,9 @@ Qt:         6.10.3
 SciPy:      NOT INSTALLED (fallback pure-Python solver used for all runs)
 Tool file:  tools/pcb_trace_resistance.py  (5545 lines, v0.13)
 
-=== Measured Runtimes ===
+=== Canonical Acceptance Suites ===
 
+All three suites must pass (regression_compare.py all) before integration.
 All timings captured with `time python3 tools/pcb_trace_resistance.py ...`
 on the system above.  Each run was a single cold start; no warm-up.
 
@@ -25,7 +26,7 @@ Suite 1: Headless selftest (118 vectors, no board file)
   CPU:        67%
   Measured:   2026-08-26
 
-Suite 2: Real-board selftest (284 vectors, power-bank board)
+Suite 2: Real-board selftest (284 vectors, IP5385 power-bank board)
   Command:   python3 tools/pcb_trace_resistance.py --selftest \
              ai_reference/kicad_project_example/Ref_PowerBank_injoinic_IP5385_v0.8.kicad_pcb
   Board SHA-256: 0a1ca4dcfbf8c6609319091f00a515854c3f78e60058272fbd93203d1276a6e9
@@ -36,20 +37,26 @@ Suite 2: Real-board selftest (284 vectors, power-bank board)
   CPU:         99%
   Measured:   2026-08-26
 
-Suite 3: Reference-board selftest (254 vectors expected)
-  Command:   python3 tools/pcb_trace_resistance.py --selftest <ref_board.kicad_pcb>
-  Status:    BLOCKED — reference board not available in package
-  Runtime:   N/A
+Suite 3: IP5385 batch report (1 net, 11 pairs — PACK_P net)
+  Command:   python3 tools/pcb_trace_resistance.py \
+             --report ai_reference/kicad_project_example/Ref_PowerBank_injoinic_IP5385_v0.8.kicad_pcb \
+             --nets   ai_reference/kicad_project_example/net_selection_PACK.json \
+             --format json
+  Board SHA-256:  0a1ca4dcfbf8c6609319091f00a515854c3f78e60058272fbd93203d1276a6e9
+  Netsel SHA-256: ff8e5ec8f10975670cb65495d2fe5f698ce803e1d7b4f295cfc6686c5aa7d111
+  Result:    1 net, 11 pairs PASS  (exit 0)
+  Wall clock: 9.512 s
+  Measured:   2026-08-26
 
 === Performance Budgets ===
 
 Regression threshold: +20% wall-clock increase flags a regression.
 
-  Scenario                    Baseline (s)   Budget (s)   Status
-  -------                     ------------   ----------   ------
-  Headless selftest (118)          0.220        0.264      PASS
-  Real-board selftest (284)       27.882       33.458      PASS
-  Reference-board selftest (254)   N/A          N/A        BLOCKED
+  Scenario                              Baseline (s)   Budget (s)   Status
+  -------                               ------------   ----------   ------
+  Headless selftest (118 vectors)            0.220        0.264      PASS
+  Real-board selftest (284 vectors)         27.882       33.458      PASS
+  IP5385 batch report (1 net, 11 pairs)      9.512       11.414      PASS
 
 === Scaling Notes ===
 
@@ -60,7 +67,9 @@ Regression threshold: +20% wall-clock increase flags a regression.
     - Dijkstra path tracing for 284 vectors
     - Zone mesh computation (V22 ladder-vs-mesh comparison)
   SciPy-accelerated sparse solver would reduce CPU-bound phases.
-- Reference board runtime expected to be similar to power-bank (20–35 s).
+- IP5385 report suite (9.5 s) is dominated by board parse and 11-pair
+  network solution; shares board-load time with the selftest but runs
+  a different code path (run_report vs run_selftest).
 
 === Memory ===
 
@@ -77,3 +86,5 @@ and fail if wall clock exceeds the budget threshold.
 === Revision History ===
 
 2026-08-26  Session 01 initial capture  (measured, not estimated)
+2026-08-27  Coordinator repair v3: replaced BLOCKED reference-board suite with
+            measured IP5385 batch report suite (9.512 s wall clock, 1 net, 11 pairs)

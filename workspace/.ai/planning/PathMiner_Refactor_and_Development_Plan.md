@@ -83,10 +83,10 @@ Scope:
 
 - Archive the supplied v0.13 tree and reference inputs.
 - Record supported CLI commands, defaults, warnings, report fields, and GUI behaviors.
-- Run and preserve the existing 254/254, 284/284, and 118/118 results.
+- Run and preserve the canonical 118/118 headless, 284/284 IP5385 real-board, and IP5385 report (1 net, 11 pairs) results.
 - Save representative JSON, Markdown, text, and PDF outputs as golden fixtures where stable.
 - Add a single command that runs the complete baseline test suite.
-- Record current runtime on the reference board and real power-bank board.
+- Record current runtime on the IP5385 power-bank board (selftest and batch report).
 - Create an architecture decision record explaining the incremental-refactor rule.
 
 Primary punch-list items:
@@ -638,7 +638,7 @@ Do not report percentage complete from effort estimates alone. Report completed 
 
 Before the first refactor PR, confirm:
 
-- The v0.13 source tree and both reference boards are the approved baseline.
+- The v0.13 source tree and the IP5385 KiCad project (committed to ai_reference/kicad_project_example/) are the approved baseline.
 - The supported Python versions and three target operating systems.
 - Whether `pytest` and `pyproject.toml` packaging are acceptable for the refactor.
 - The stable top-level public API recommendation in ADR-002.

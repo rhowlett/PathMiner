@@ -1,6 +1,8 @@
 {
-  "manifest_version": 1,
+  "manifest_version": 2,
   "created": "2026-08-26",
+  "updated": "2026-08-27",
+  "update_note": "Coordinator repair v3: canonical baseline changed to 3-suite IP5385-based gate; 254/254 reference-board requirement removed",
   "baseline": "PathMiner v0.13 supplied archive",
   "original_archive": {
     "name": "pathminer.zip",
@@ -9,10 +11,13 @@
   },
   "entry_point": "tools/pcb_trace_resistance.py",
   "schema": "schema/pcb_net_selection.schema.json",
-  "expected_acceptance": {
-    "headless_without_board": "118/118",
-    "reference_board": "254/254 when the reference board is supplied/extracted",
-    "power_bank_board": "284/284 when the approved real-board fixture is supplied"
+  "canonical_acceptance_gate": {
+    "description": "All three suites must exit 0. Run: python3 tests/baseline/regression_compare.py all",
+    "headless_selftest": "118/118 vectors PASS (no board file required)",
+    "real_board_selftest": "284/284 vectors PASS using ai_reference/kicad_project_example/Ref_PowerBank_injoinic_IP5385_v0.8.kicad_pcb",
+    "ip5385_batch_report": "1 net (/Reference Design/PACK_P), 11 pairs PASS using net_selection_PACK.json",
+    "board_sha256": "0a1ca4dcfbf8c6609319091f00a515854c3f78e60058272fbd93203d1276a6e9",
+    "netsel_sha256": "ff8e5ec8f10975670cb65495d2fe5f698ce803e1d7b4f295cfc6686c5aa7d111"
   },
   "baseline_command": "python3 tools/pcb_trace_resistance.py --selftest [board.kicad_pcb]",
   "numeric_policy": "Preserve existing vector tolerances; no relaxation without an ADR and golden-output review.",

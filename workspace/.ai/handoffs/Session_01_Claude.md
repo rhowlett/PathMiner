@@ -4,8 +4,8 @@
 **AI:** Claude
 **Model:** claude-sonnet-4-6 (authorized substitution; prompt specified Haiku-4.5 / claude-haiku-4-5-20251001)
 **Effort Level:** Medium
-**Date:** 2026-08-26 (coordinator repair completed 2026-08-27)
-**Final Commit:** 92baa47
+**Date:** 2026-08-26 (coordinator repair v2: 2026-08-27; coordinator repair v3: 2026-08-27)
+**Final Commit:** coordinator_repair_v3_pending_commit
 
 ---
 
@@ -368,6 +368,14 @@ None. Session is documentation and baseline infrastructure only.
 7. **BASE-002 closed:** All factual errors in compatibility_inventory.md corrected against v0.13 source in coordinator repair pass.
 
 8. **Model substitution recorded:** Prompt specified Haiku-4.5; actual model is claude-sonnet-4-6. Authorized by user. Recorded in this handoff and in the inventory.
+
+9. **Repair v3 (2026-08-27) — normalize_path extended for CI:** Added dynamic workspace-root normalization (WORKSPACE path) plus common CI roots (`/workspace`, `/github/workspace`, `/runner/work`). V19 "json default dir is the board dir" will now normalize correctly on any checkout path, not just macOS home dirs.
+
+10. **Repair v3 — golden_fixtures_notes.md rewritten:** Previous file described planned fixtures that did not yet exist. Rewritten to document the three actual fixture files, their vector counts, board SHAs, and the exact normalization rules the comparator applies.
+
+11. **Repair v3 — PERFORMANCE_BASELINE_v0.13.txt updated:** Replaced the BLOCKED reference-board suite (Suite 3) with the measured IP5385 batch report suite (9.512 s wall clock, 1 net, 11 pairs). Performance budget table updated accordingly.
+
+12. **Repair v3 — .ai/planning and .ai/reference corrected:** Removed 254/254 and 656/656 from BASELINE_MANIFEST.json, PACKAGE_BUILD_VALIDATION.md, PathMiner_Implementation_Punch_List.md (BASE-001 done-when, QA-004 description), PathMiner_Refactor_and_Development_Plan.md (M0 scope, pre-PR checklist), and PathMiner_Project_Specification.md (section 16.1 acceptance list).
 
 ---
 

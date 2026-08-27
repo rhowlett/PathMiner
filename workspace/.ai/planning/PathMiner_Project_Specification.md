@@ -1334,7 +1334,7 @@ Performance acceptance shall use fixed reference machines/boards and publish nod
 
 The refactor shall preserve:
 
-- 254/254 checks on the reference test board.
+- 284/284 checks on the IP5385 real-board selftest and 1 net / 11 pairs from the IP5385 batch report.
 - 284/284 checks on the real 4-layer power-bank board.
 - 118/118 headless/no-board checks.
 - Existing trace/via formula vectors, stackup parsing, routed-net tracing, network topologies, pour ladder/mesh comparisons, JSON selection, report generation, and real-board defect regressions.

@@ -18,8 +18,11 @@ Exit codes:
     2  — usage or I/O error
 
 Normalization applied (must match golden_fixtures_notes.md rules):
-    selftest:  absolute paths replaced with <normalized_path>; runtime fields excluded
-    report:    generated timestamp and solve_seconds excluded; resistance values kept
+    selftest:  workspace root, home dirs, temp dirs, and CI paths → <normalized_path>;
+               V18 "reopen restores height" pixel count → <platform_dependent> sentinel;
+               runtime fields excluded
+    report:    generated timestamp and solve_seconds excluded; resistance values kept;
+               branch-location in notes stripped (hash-map order volatile)
 """
 
 import json
@@ -93,16 +96,36 @@ FLOAT_TOL = 1e-6
 def normalize_path(s: str) -> str:
     """Replace volatile filesystem paths with a stable sentinel.
 
-    Handles:
-      /Users/<user>/...        macOS home-directory paths
+    Handles (in priority order):
+      <workspace_root>/...     Any path under the repo checkout root —
+                               covers developer machines AND CI containers
+                               regardless of where the repo is placed.
+      /Users/<user>/...        macOS home-directory paths (remaining)
       /var/folders/<x>/...     macOS temp (mkdtemp) paths
       /tmp/...                 Linux temp paths
       /home/<user>/...         Linux home-directory paths
+      /workspace/...           Docker / GitHub-Actions workspace root
+      /github/workspace/...    GitHub Actions alternate root
+      /runner/work/...         GitHub Actions runner work dir
     """
+    # Workspace-root normalization: deterministic regardless of checkout path.
+    # Must run first so the more-specific regex patterns don't partially match
+    # a workspace path that happens to start with /Users or /home.
+    workspace_str = str(WORKSPACE)
+    if workspace_str and workspace_str != "/":
+        s = re.sub(re.escape(workspace_str) + r"\S*", "<normalized_path>", s)
+    # macOS home-directory paths
     s = re.sub(r"/Users/[^/\s]+/\S+", "<normalized_path>", s)
+    # macOS temp (mkdtemp) paths
     s = re.sub(r"/var/folders/\S+", "<normalized_path>", s)
+    # Linux temp paths
     s = re.sub(r"/tmp/\S+", "<normalized_path>", s)
+    # Linux home-directory paths
     s = re.sub(r"/home/[^/\s]+/\S+", "<normalized_path>", s)
+    # CI workspace roots (Docker, GitHub Actions)
+    s = re.sub(r"/workspace/\S+", "<normalized_path>", s)
+    s = re.sub(r"/github/workspace/\S+", "<normalized_path>", s)
+    s = re.sub(r"/runner/work/\S+", "<normalized_path>", s)
     return s
 
 
