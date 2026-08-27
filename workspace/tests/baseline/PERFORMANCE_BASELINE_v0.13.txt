@@ -1,0 +1,79 @@
+PathMiner v0.13 — Performance Baseline
+Captured: 2026-08-26  Session 01 (claude-sonnet-4-6; authorized substitution for Haiku-4.5)
+Baseline commit: fe507fd01017cd0930739cbd8c4cc3f916b47e98
+
+=== System Configuration ===
+
+Platform:   macOS-26.6.2-arm64-arm-64bit  (Apple Silicon)
+Python:     3.12.13 [Clang 21.0.0]
+PySide6:    6.10.3
+Qt:         6.10.3
+SciPy:      NOT INSTALLED (fallback pure-Python solver used for all runs)
+Tool file:  tools/pcb_trace_resistance.py  (5545 lines, v0.13)
+
+=== Measured Runtimes ===
+
+All timings captured with `time python3 tools/pcb_trace_resistance.py ...`
+on the system above.  Each run was a single cold start; no warm-up.
+
+Suite 1: Headless selftest (118 vectors, no board file)
+  Command:   python3 tools/pcb_trace_resistance.py --selftest
+  Result:    118/118 PASS  (exit 0)
+  Wall clock: 0.220 s
+  User time:  0.12 s
+  Sys time:   0.03 s
+  CPU:        67%
+  Measured:   2026-08-26
+
+Suite 2: Real-board selftest (284 vectors, power-bank board)
+  Command:   python3 tools/pcb_trace_resistance.py --selftest \
+             ai_reference/kicad_project_example/Ref_PowerBank_injoinic_IP5385_v0.8.kicad_pcb
+  Board SHA-256: 0a1ca4dcfbf8c6609319091f00a515854c3f78e60058272fbd93203d1276a6e9
+  Result:    284/284 PASS  (exit 0)
+  Wall clock: 27.882 s
+  User time:  27.10 s
+  Sys time:    0.61 s
+  CPU:         99%
+  Measured:   2026-08-26
+
+Suite 3: Reference-board selftest (254 vectors expected)
+  Command:   python3 tools/pcb_trace_resistance.py --selftest <ref_board.kicad_pcb>
+  Status:    BLOCKED — reference board not available in package
+  Runtime:   N/A
+
+=== Performance Budgets ===
+
+Regression threshold: +20% wall-clock increase flags a regression.
+
+  Scenario                    Baseline (s)   Budget (s)   Status
+  -------                     ------------   ----------   ------
+  Headless selftest (118)          0.220        0.264      PASS
+  Real-board selftest (284)       27.882       33.458      PASS
+  Reference-board selftest (254)   N/A          N/A        BLOCKED
+
+=== Scaling Notes ===
+
+- Headless suite is dominated by PySide6 import time (~0.15 s).
+  If the selftest refactors to avoid PySide6 import, expect < 0.05 s.
+- Power-bank suite (27.9 s) includes:
+    - Board parse and graph construction
+    - Dijkstra path tracing for 284 vectors
+    - Zone mesh computation (V22 ladder-vs-mesh comparison)
+  SciPy-accelerated sparse solver would reduce CPU-bound phases.
+- Reference board runtime expected to be similar to power-bank (20–35 s).
+
+=== Memory ===
+
+No memory profiling was performed.  Estimate: < 200 MB peak RSS for a 4-layer
+2.1 MB board.  Regression criterion: if RSS exceeds 512 MB on the power-bank
+board, investigate before committing the change.
+
+=== Automation Notes ===
+
+Automated benchmark enforcement is out of Session 01 scope.  A future session
+should wrap these measurements in pytest benchmarks (e.g., pytest-benchmark)
+and fail if wall clock exceeds the budget threshold.
+
+=== Revision History ===
+
+2026-08-26  Session 01 initial capture  (measured, not estimated)

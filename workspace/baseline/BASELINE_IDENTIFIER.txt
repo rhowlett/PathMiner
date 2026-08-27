@@ -1,0 +1,45 @@
+PathMiner v0.13 Immutable Baseline Identifier
+
+Baseline ID: pathminer-v0.13-baseline
+Baseline Commit: fe507fd01017cd0930739cbd8c4cc3f916b47e98
+Date Established: 2026-08-26
+Application: tools/pcb_trace_resistance.py (v0.13, 5545 lines)
+
+This commit represents the validated v0.13 implementation from which all
+refactoring work proceeds. No changes to the baseline itself are permitted
+after this point. All improvements, restructuring, and capability expansion
+must proceed through incremental sessions that preserve or improve upon the
+baseline acceptance criteria.
+
+The baseline is defined by its successful completion of all acceptance vectors:
+  - Reference board selftest: 254/254 checks
+  - Real power-bank board selftest: 284/284 checks
+  - Headless (no board) selftest: 118/118 checks
+
+Total acceptance: 656/656 vectors
+
+Numerical behavior is frozen at the v0.13 values. Refactoring must preserve
+all results within documented tolerances unless explicitly authorized by
+the session coordinator.
+
+Preserved components:
+  - Core resistance models (trace, via, zone ladder, zone mesh)
+  - Nodal analysis solver (dense and sparse)
+  - KiCad board parsing and geometry extraction
+  - CLI command syntax and JSON schema
+  - GUI tab structure (Trace, Via/Path, Stackup, Report)
+  - Report formatting (Markdown, text, PDF, JSON)
+  - IPC-2221 temperature-rise calculation
+
+Permitted changes:
+  - Code reorganization and module extraction
+  - Internal optimization without changing results
+  - Bug fixes backed by test cases
+  - Schema extensions that do not break existing files
+
+Forbidden changes (without explicit session authorization):
+  - Numerical behavior outside documented tolerances
+  - Breaking changes to public APIs or CLI syntax
+  - Model simplification or replacement without proof
+  - Removal of validated acceptance vectors
+

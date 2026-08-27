@@ -1,0 +1,141 @@
+{
+  "session": 1,
+  "ai": "Claude",
+  "model": "claude-sonnet-4-6",
+  "model_note": "Authorized substitution: prompt specified claude-haiku-4-5-20251001; actual running model is claude-sonnet-4-6",
+  "speed": "standard",
+  "effort": "medium",
+  "status": "PARTIAL",
+  "base_commit": "fe507fd01017cd0930739cbd8c4cc3f916b47e98",
+  "final_commit": null,
+  "branch": "ai/session-01-claude-baseline",
+  "patch_checksum": null,
+  "punch_items": [
+    {
+      "id": "BASE-001",
+      "role": "closure owner",
+      "status": "open",
+      "evidence": "Headless selftest 118/118 PASS (exit 0, 0.220 s wall clock). Real-board (power-bank) selftest 284/284 PASS (exit 0, 27.882 s wall clock). Reference-board selftest 254/254 BLOCKED (board file not available in package; requires .kicad_pcb with /SDA net and Z1.SDA/Z2.SDA pads). Done-when clause requires all three suites: two of three verified."
+    },
+    {
+      "id": "BASE-002",
+      "role": "closure owner",
+      "status": "open",
+      "evidence": "documents/compatibility_inventory.md created and corrected during strict repair. Critical errors found and corrected: tab named 'Setup' not 'Stackup' (source line 5400); plating default 18.0 um not 'no default' (DEFAULT_OPTIONS line 2070); current_a default 1.0 A not 0 (line 2077); signal_voltage_v default 3.3 V added (line 2080); outer_plating_adds default True corrected (line 2073); max_pairs_warn default 28 added (line 2079); zone model and drill/barrel conventions moved from Via/Path tab to Setup tab 'Via and zone modelling' section (SetupTab.sec_model line 2913). All corrections sourced from v0.13 code with line citations. Status open pending coordinator review."
+    },
+    {
+      "id": "QA-004",
+      "role": "contributes to",
+      "status": "open",
+      "evidence": "Actual golden fixture JSON files created from real selftest runs: tests/baseline/fixtures/headless_118_selftest.json (118 vectors, normalized), tests/baseline/fixtures/powerbank_284_selftest.json (284 vectors, board SHA-256 recorded). Executable comparator tests/baseline/regression_compare.py created and verified: python3 tests/baseline/regression_compare.py all exits 0 with PASS for both available suites. Reference-board fixture (reference_254_selftest.json) blocked pending board availability."
+    },
+    {
+      "id": "QA-006",
+      "role": "contributes to",
+      "status": "open",
+      "evidence": "tests/baseline/PERFORMANCE_BASELINE_v0.13.txt records MEASURED (not estimated) runtimes: headless 0.220 s wall clock (0.12 s user, 67% CPU), power-bank 27.882 s wall clock (27.10 s user, 99% CPU). System: Python 3.12.13, PySide6 6.10.3, Qt 6.10.3, SciPy not installed, macOS arm64. Regression threshold: +20% wall-clock increase. Automated CI benchmark integration deferred to future session."
+    }
+  ],
+  "files": {
+    "added": [
+      "baseline/README.md",
+      "baseline/BASELINE_IDENTIFIER.txt",
+      "tests/baseline/README.md",
+      "tests/baseline/golden_fixtures_notes.md",
+      "tests/baseline/PERFORMANCE_BASELINE_v0.13.txt",
+      "tests/baseline/regression_compare.py",
+      "tests/baseline/fixtures/headless_118_selftest.json",
+      "tests/baseline/fixtures/powerbank_284_selftest.json",
+      "documents/compatibility_inventory.md",
+      "documents/adr/ADR-001.md",
+      ".ai/handoffs/Session_01_Claude.md",
+      ".ai/handoffs/Session_01_Claude.json"
+    ],
+    "modified": [],
+    "removed": []
+  },
+  "files_explicitly_excluded": [
+    "ai_reference/kicad_project_example/Ref_PowerBank_injoinic_IP5385_v0.8.kicad_pcb",
+    "ai_reference/kicad_project_example/Ref_PowerBank_injoinic_IP5385_v0.8.kicad_pro",
+    "ai_reference/kicad_project_example/Ref_PowerBank_injoinic_IP5385_v0.8.kicad_sch",
+    "ai_reference/kicad_project_example/__MACOSX/",
+    "ai_reference/kicad_project_example/change_log.kicad_sch",
+    "ai_reference/kicad_project_example/main.kicad_sch",
+    "ai_reference/kicad_project_example/net_selection_PACK.json",
+    "ai_reference/kicad_project_example/test_points.kicad_sch",
+    "SESSION_01_SUMMARY.md"
+  ],
+  "apis_changed": [],
+  "schemas_changed": [],
+  "compatibility_consequences": [],
+  "environment": {
+    "python": "3.12.13 [Clang 21.0.0]",
+    "PySide6": "6.10.3",
+    "Qt": "6.10.3",
+    "scipy": "not installed",
+    "platform": "macOS-26.6.2-arm64-arm-64bit"
+  },
+  "tests": [
+    {
+      "command": "python3 tools/pcb_trace_resistance.py --selftest",
+      "exit_code": 0,
+      "result": "118/118 checks passed",
+      "runtime_seconds": 0.220,
+      "timing_detail": "0.12s user 0.03s system 67% cpu 0.220 total"
+    },
+    {
+      "command": "python3 tools/pcb_trace_resistance.py --selftest ai_reference/kicad_project_example/Ref_PowerBank_injoinic_IP5385_v0.8.kicad_pcb",
+      "exit_code": 0,
+      "result": "284/284 checks passed",
+      "runtime_seconds": 27.882,
+      "timing_detail": "27.10s user 0.61s system 99% cpu 27.882 total",
+      "board_sha256": "0a1ca4dcfbf8c6609319091f00a515854c3f78e60058272fbd93203d1276a6e9"
+    },
+    {
+      "command": "python3 tools/pcb_trace_resistance.py --selftest <reference_board.kicad_pcb>",
+      "exit_code": null,
+      "result": "BLOCKED: Reference board file not available in package. Required: .kicad_pcb with /SDA net and Z1.SDA/Z2.SDA terminals.",
+      "runtime_seconds": null
+    },
+    {
+      "command": "python3 tests/baseline/regression_compare.py all",
+      "exit_code": 0,
+      "result": "118/118 headless PASS, 284/284 powerbank PASS against golden fixtures",
+      "runtime_seconds": null
+    },
+    {
+      "command": "python3 -m json.tool < .ai/handoffs/Session_01_Claude.json > /dev/null",
+      "exit_code": 0,
+      "result": "Valid JSON syntax",
+      "runtime_seconds": null
+    }
+  ],
+  "decisions": [
+    "Reference board as hard blocker: BASE-001 requires all three suites. Did not substitute a different board per coordinator directive.",
+    "Actual golden fixtures created (not deferred): Strict repair requires fixtures from real runs. tests/baseline/fixtures/ now contains real normalized output for headless and power-bank suites.",
+    "Measured runtimes only: Previous version used estimated ranges. This version records exact wall-clock times from `time` command.",
+    "BASE-002 left open after correction: Critical errors in compatibility inventory were found and corrected. Status open pending coordinator review.",
+    "Model substitution recorded: Prompt specified Haiku-4.5; actual running model is claude-sonnet-4-6. Authorized by user. Recorded in both handoffs and inventory."
+  ],
+  "assumptions": [
+    "v0.13 acceptance vectors are authoritative; no errors assumed in test specifications.",
+    "Reference board is a specific artifact with /SDA net and Z1.SDA/Z2.SDA pads; no substitute acceptable.",
+    "Power-bank board SHA-256 (0a1ca4dcfbf8c6609319091f00a515854c3f78e60058272fbd93203d1276a6e9) is stable; file change invalidates fixture."
+  ],
+  "deviations": [
+    "Model substitution: claude-sonnet-4-6 used instead of claude-haiku-4-5-20251001 (prompt specification). Authorized by user.",
+    "BASE-002 reopened: Previous handoff claimed closed. Strict repair found critical errors; status reset to open pending coordinator review.",
+    "Golden fixtures created not deferred: Previous repair deferred fixture content; strict repair instruction forbids deferral."
+  ],
+  "known_issues": [
+    "Reference board unavailable: Blocks BASE-001 closure. Severity: High. Coordinator action required.",
+    "SciPy not installed: Power-bank suite uses pure-Python solver (27.9 s); correctness unaffected. Severity: Low.",
+    "Reference-board fixture missing: tests/baseline/fixtures/reference_254_selftest.json cannot be created. Severity: Medium.",
+    "Automated benchmark CI not integrated: Thresholds recorded but not CI-enforced. Severity: Low (deferred)."
+  ],
+  "dependent_session_impact": [
+    "Session 02 (Package and CI skeleton): Can proceed once BASE-002 is closed by coordinator review. BASE-001 blocks full integration.",
+    "All subsequent sessions (03-34): ADR-001 parity gates and corrected compatibility inventory available. regression_compare.py provides executable baseline check."
+  ],
+  "recommended_next_action": "Coordinator: (1) Review documents/compatibility_inventory.md for accuracy; if correct, close BASE-002. (2) Locate reference board (.kicad_pcb with /SDA net, Z1.SDA/Z2.SDA pads) and run python3 tools/pcb_trace_resistance.py --selftest <ref_board.kicad_pcb>; if 254/254, close BASE-001 and mark INTEGRATED. (3) Assign Session 02."
+}
