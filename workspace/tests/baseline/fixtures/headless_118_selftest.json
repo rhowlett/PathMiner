@@ -20,7 +20,8 @@
     "normalized_for_regression": true,
     "normalization_rules": [
       "timestamps excluded",
-      "absolute paths replaced with <normalized_path>",
+      "absolute paths (/Users, /var/folders, /tmp, /home) normalized to <normalized_path>",
+      "V18 reopen restores height stored as <platform_dependent> (pixel value varies by DPI/font; status PASS preserved)",
       "runtime measurements excluded from comparison"
     ]
   },
@@ -598,20 +599,20 @@
     {
       "status": "PASS",
       "description": "V23 project resolves to its sibling board",
-      "got": "/var/folders/9k/smst4kss2fl0cw5...",
-      "want": "/var/folders/9k/smst4kss2fl0cw5..."
+      "got": "<normalized_path>",
+      "want": "<normalized_path>"
     },
     {
       "status": "PASS",
       "description": "V23 a board resolves to itself",
-      "got": "/var/folders/9k/smst4kss2fl0cw5...",
-      "want": "/var/folders/9k/smst4kss2fl0cw5..."
+      "got": "<normalized_path>",
+      "want": "<normalized_path>"
     },
     {
       "status": "PASS",
       "description": "V23 board resolves back to its project",
-      "got": "/var/folders/9k/smst4kss2fl0cw5...",
-      "want": "/var/folders/9k/smst4kss2fl0cw5..."
+      "got": "<normalized_path>",
+      "want": "<normalized_path>"
     },
     {
       "status": "PASS",
@@ -628,8 +629,8 @@
     {
       "status": "PASS",
       "description": "V23 a differently named lone board is still found",
-      "got": "/var/folders/9k/smst4kss2fl0cw5...",
-      "want": "/var/folders/9k/smst4kss2fl0cw5..."
+      "got": "<normalized_path>",
+      "want": "<normalized_path>"
     },
     {
       "status": "PASS",

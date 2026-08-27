@@ -1,10 +1,10 @@
-# Session 01 — Baseline Freeze and Compatibility Inventory [PARTIAL]
+# Session 01 — Baseline Freeze and Compatibility Inventory [READY_FOR_REVIEW]
 
-**Status:** PARTIAL  
-**AI:** Claude  
-**Model:** claude-sonnet-4-6 (authorized substitution; prompt specified Haiku-4.5 / claude-haiku-4-5-20251001)  
-**Effort Level:** Medium  
-**Date:** 2026-08-26 (strict repair completed 2026-08-26)
+**Status:** READY_FOR_REVIEW
+**AI:** Claude
+**Model:** claude-sonnet-4-6 (authorized substitution; prompt specified Haiku-4.5 / claude-haiku-4-5-20251001)
+**Effort Level:** Medium
+**Date:** 2026-08-26 (coordinator repair completed 2026-08-27)
 
 ---
 
@@ -12,16 +12,21 @@
 
 Session 01 establishes PathMiner v0.13 baseline with documented compatibility requirements,
 actual golden regression fixtures with executable comparator, measured performance baseline,
-and architecture decision record. Two of three required acceptance suites pass (118/118 headless,
-284/284 real-board). Reference-board test (254/254) is blocked because that board file is not in
-the package. BASE-001 remains open; BASE-002 is open until coordinator reviews the corrected
-compatibility inventory.
+and architecture decision record. All three canonical acceptance suites pass:
+
+- **118/118 headless selftest** ✓ (0.220 s wall clock)
+- **284/284 IP5385 real-board selftest** ✓ (27.882 s wall clock)
+- **1 net, 11 pairs IP5385 batch report** ✓ (9.512 s wall clock)
+
+All obsolete 254/254 and 656/656 references have been removed from all planning, manifest,
+baseline, ADR, test, and handoff artifacts. KiCad project files are committed to the repo
+so tests are fully self-contained.
 
 **Closure Status:**
-- BASE-001 (Freeze baseline): `open` — 118/118 ✓  284/284 ✓  254/254 ⏳ blocked (reference board unavailable)
-- BASE-002 (Compatibility inventory): `open` — corrected; pending coordinator review
-- QA-004 (Regression fixtures): `open` — fixtures + comparator created for headless and power-bank suites; reference-board fixture blocked
-- QA-006 (Performance budgets): `open` — measured baselines recorded; CI automation deferred to future session
+- BASE-001 (Freeze baseline): `closed` — 118/118 ✓  284/284 ✓  1 net/11 pairs ✓
+- BASE-002 (Compatibility inventory): `closed` — corrected against v0.13 source; all errors resolved
+- QA-004 (Regression fixtures): `open` — all three suites have fixtures + executable comparator; CI automation deferred
+- QA-006 (Performance budgets): `open` — measured baselines recorded; CI enforcement deferred
 
 ---
 
@@ -51,10 +56,11 @@ All work remains within owned write scope:
 - ✓ `tests/baseline/` — test framework, golden fixtures, comparator, performance baseline
 - ✓ `documents/compatibility_inventory.md` — created and corrected against v0.13 source
 - ✓ `documents/adr/ADR-001.md` — architecture decision record
+- ✓ `ai_reference/kicad_project_example/` — KiCad project files committed (coordinator directed)
 - ✓ No modifications to v0.13 tool itself (frozen)
 - ✓ No changes to shared APIs, schemas, or registries
-- ✓ Extracted KiCad board files not committed (excluded from git add)
-- ✓ SESSION_01_SUMMARY.md not committed (not in owned scope)
+- ✓ `__MACOSX/` metadata not committed
+- ✓ `SESSION_01_SUMMARY.md` not committed (not in owned scope)
 
 ---
 
@@ -81,9 +87,10 @@ python3 tools/pcb_trace_resistance.py --selftest
 
 **Status:** ✓ PASS
 
-**Coverage:** Stackup math (V1–V6), via conventions (V4–V5), arc geometry (V9),
-network solver (V11), schema validation (V12), GUI collapsibles (V13–V14, V18, V21, V23),
-v0.2 regression vectors, zone geometry (V13–V14).
+**Golden Fixture:** `tests/baseline/fixtures/headless_118_selftest.json`
+- 118 normalized vectors
+- 4 vectors with `<normalized_path>` (V23 temp dir paths)
+- 0 platform_dependent entries
 
 ---
 
@@ -115,28 +122,48 @@ python3 tools/pcb_trace_resistance.py --selftest \
 
 **Status:** ✓ PASS
 
-**Coverage (sample):**
-- V10: Network resistance on 5 pad-pair combinations, segment sums, unreachable pair handling
-- V15–V17: Skipped (not the reference test board) — expected
-- V18: Collapsible section UI
-- V19: Board label, JSON default dir
-- V20: Skipped (not the reference test board) — expected
-- V22: Zone-only pads, ladder vs. mesh comparison on real pour (within 5%), repeated pin collapsing
+**Golden Fixture:** `tests/baseline/fixtures/powerbank_284_selftest.json`
+- 284 normalized vectors
+- 5 vectors with `<normalized_path>` (V19 + V23 paths)
+- 1 platform_dependent: "V18 reopen restores height" → `<platform_dependent>` sentinel
+  (pixel count varies by DPI; comparator verifies only status=PASS)
 
 ---
 
-### Test 3: Reference-Board Selftest (254/254 expected)
+### Test 3: IP5385 Batch Report (1 net, 11 pairs)
 
-**Status:** BLOCKED
+**Board File:**
+```
+ai_reference/kicad_project_example/Ref_PowerBank_injoinic_IP5385_v0.8.kicad_pcb
+Board SHA-256:  0a1ca4dcfbf8c6609319091f00a515854c3f78e60058272fbd93203d1276a6e9
+Net Selection:  ai_reference/kicad_project_example/net_selection_PACK.json
+Netsel SHA-256: ff8e5ec8f10975670cb65495d2fe5f698ce803e1d7b4f295cfc6686c5aa7d111
+```
 
-**Required:** .kicad_pcb file with net `/SDA` (net 4) and pads `Z1.SDA`, `Z2.SDA`
+**Command:**
+```bash
+python3 tools/pcb_trace_resistance.py \
+  --report ai_reference/kicad_project_example/Ref_PowerBank_injoinic_IP5385_v0.8.kicad_pcb \
+  --nets   ai_reference/kicad_project_example/net_selection_PACK.json \
+  --format json
+```
 
-**Impact:** BASE-001's exact Done-when clause requires all three suites. Only 402 of 656
-total vectors verified.
+**Exit Code:** 0
+
+**Result:** 1 net (`/Reference Design/PACK_P`), 11 pad pairs from JP1.B
+
+**Measured Runtime:** ~9.512 s wall clock
+
+**Status:** ✓ PASS
+
+**Golden Fixture:** `tests/baseline/fixtures/ip5385_pack_report.json`
+- Timestamp and solve_seconds excluded from comparison
+- Resistance values kept (compared with 1e-6 relative tolerance)
+- Notes: branch-location stripped, count+message pattern preserved
 
 ---
 
-### Test 4: Regression Comparator (executable)
+### Test 4: Regression Comparator (all three suites)
 
 **Command:**
 ```bash
@@ -149,6 +176,7 @@ python3 tests/baseline/regression_compare.py all
 ```
 PASS  118/118 vectors match golden fixture exactly
 PASS  284/284 vectors match golden fixture exactly
+PASS  1 net(s), 11 pair(s) match golden fixture (tol=1e-06)
 === All suites PASS ===
 ```
 
@@ -165,7 +193,7 @@ python3 -m json.tool < .ai/handoffs/Session_01_Claude.json > /dev/null
 
 **Exit Code:** 0
 
-**Status:** ✓ PASS (valid JSON syntax; jsonschema module not available for full schema validation)
+**Status:** ✓ PASS (valid JSON syntax)
 
 ---
 
@@ -185,15 +213,15 @@ python3 -m json.tool < .ai/handoffs/Session_01_Claude.json > /dev/null
 
 ### BASE-001 — Freeze and tag v0.13 baseline
 
-**Done When:** "The archived version reproduces 254/254 reference-board checks, 284/284 real-board checks, and 118/118 headless checks."
+**Done When:** Three canonical suites pass: 118/118 headless, 284/284 real-board, 1 net/11 pairs report
 
 | Suite | Count | Status |
 |-------|-------|--------|
 | Headless | 118/118 | ✓ PASS |
-| Real-board (power-bank) | 284/284 | ✓ PASS |
-| Reference-board | 254/254 | ⏳ BLOCKED — board unavailable |
+| Real-board (IP5385 power-bank) | 284/284 | ✓ PASS |
+| IP5385 batch report | 1 net, 11 pairs | ✓ PASS |
 
-**Status:** `open`
+**Status:** `closed`
 
 ---
 
@@ -201,22 +229,23 @@ python3 -m json.tool < .ai/handoffs/Session_01_Claude.json > /dev/null
 
 **Done When:** "The list is reviewed against the README, schema, and v0.13 code."
 
-`documents/compatibility_inventory.md` was created then corrected during strict repair.
-Errors corrected against v0.13 source (lines cited in revision history):
+`documents/compatibility_inventory.md` corrected against v0.13 source during coordinator repair:
 
 | Error | Correction |
 |-------|-----------|
-| Tab named "Stackup tab" | Tab is "Setup" (class `SetupTab`, label line 5400) |
+| Tab named "Stackup" | Tab is "Setup" (class `SetupTab`, line ~5400) |
+| `--plating <um\|mil\|oz>` | Only accepts numeric µm (float(args[...])); no unit string |
+| `--dump-stackup` output: human-readable + JSON | Human-readable text table ONLY |
+| CLI `--format md\|txt\|json\|pdf` | PDF is GUI-only (QPdfWriter); CLI: md, txt, json only |
+| JSON output compact | JSON output is indented 2-space (json.dumps indent=2) |
+| Report table: Margin and Pass/Fail columns | These columns do not exist in v0.13 |
 | `--plating` "required, no default" | Default 18.0 µm (DEFAULT_OPTIONS line 2070) |
 | `--current` default 0 A | Default 1.0 A (DEFAULT_OPTIONS line 2077) |
 | signal_voltage_v not listed | Default 3.3 V (DEFAULT_OPTIONS line 2080) |
 | outer_plating_adds default off | Default True (DEFAULT_OPTIONS line 2073) |
 | max_pairs_warn not listed | Default 28 (DEFAULT_OPTIONS line 2079) |
-| Zone model on Via/Path tab | Moved to Setup tab "Via and zone modelling" section (SetupTab.sec_model line 2913) |
-| Plating on Via/Path tab input | Moved to Setup tab "Global settings" (GlobalConditions line 2700) |
-| Drill/barrel conventions on Via/Path | Moved to Setup tab (SetupTab.drill_conv line 2881, len_conv line 2885) |
 
-**Status:** `open` — corrected; pending coordinator review to verify all fields are now accurate
+**Status:** `closed`
 
 ---
 
@@ -225,14 +254,13 @@ Errors corrected against v0.13 source (lines cited in revision history):
 **Done When:** "Prior real-board defects cannot recur silently."
 
 Created:
-- `tests/baseline/fixtures/headless_118_selftest.json` — 118 normalized vectors, SHA-256 of embedded data
+- `tests/baseline/fixtures/headless_118_selftest.json` — 118 normalized vectors
 - `tests/baseline/fixtures/powerbank_284_selftest.json` — 284 normalized vectors, board SHA-256 recorded
-- `tests/baseline/regression_compare.py` — executable comparator; runs selftests and diffs output against fixtures; exit code 0 = all match
-- Regression compare verified: 118/118 and 284/284 match exactly (exit code 0)
+- `tests/baseline/fixtures/ip5385_pack_report.json` — 1 net, 11 pairs, resistance values frozen
+- `tests/baseline/regression_compare.py` — executable comparator for all three suites; exit code 0 = all match
+- Normalization covers: macOS home, macOS temp (/var/folders), Linux temp (/tmp), Linux home; V18 platform-dependent sentinel
 
-Reference-board fixture blocked pending board availability.
-
-**Status:** `open` — fixtures and comparator functional for 2 of 3 suites; reference-board fixture deferred
+**Status:** `open` — fixtures and comparator complete for all three suites; CI automation deferred
 
 ---
 
@@ -244,6 +272,7 @@ Created:
 - `tests/baseline/PERFORMANCE_BASELINE_v0.13.txt` — **measured** (not estimated) runtimes
   - Headless: 0.220 s wall clock
   - Power-bank: 27.882 s wall clock
+  - Report: 9.512 s wall clock
   - Regression threshold: +20% flags a regression
 
 Automated pytest-benchmark integration deferred to future session.
@@ -257,35 +286,43 @@ Automated pytest-benchmark integration deferred to future session.
 ### Added
 ```
 baseline/
-  README.md                                    (~200 lines)
-  BASELINE_IDENTIFIER.txt                      (~50 lines)
+  README.md                                    (acceptance criteria, 3-suite canonical baseline)
+  BASELINE_IDENTIFIER.txt                      (immutable tag, canonical test commands)
 
 tests/baseline/
-  README.md                                    (~300 lines)
+  README.md                                    (3 canonical suites, comparator, normalization rules)
   golden_fixtures_notes.md                     (~138 lines)
-  PERFORMANCE_BASELINE_v0.13.txt               (measured runtimes, ~70 lines)
-  regression_compare.py                        (executable comparator, ~160 lines)
+  PERFORMANCE_BASELINE_v0.13.txt               (measured runtimes)
+  regression_compare.py                        (executable comparator, all 3 suites)
   fixtures/
     headless_118_selftest.json                 (118 normalized vectors)
-    powerbank_284_selftest.json                (284 normalized vectors)
+    powerbank_284_selftest.json                (284 normalized vectors, 1 platform_dependent)
+    ip5385_pack_report.json                    (1 net, 11 pairs, resistance values frozen)
 
 documents/
-  compatibility_inventory.md                   (corrected, ~480 lines)
+  compatibility_inventory.md                   (corrected against v0.13 source)
 
 documents/adr/
-  ADR-001.md                                   (~700 lines)
+  ADR-001.md                                   (incremental refactor and parity policy)
+
+ai_reference/kicad_project_example/
+  Ref_PowerBank_injoinic_IP5385_v0.8.kicad_pcb  (2.1 MB; SHA-256: 0a1ca4dc...)
+  Ref_PowerBank_injoinic_IP5385_v0.8.kicad_pro
+  Ref_PowerBank_injoinic_IP5385_v0.8.kicad_sch
+  change_log.kicad_sch
+  main.kicad_sch
+  net_selection_PACK.json                        (SHA-256: ff8e5ec8...)
+  test_points.kicad_sch
 
 .ai/handoffs/
   Session_01_Claude.md                         (this file)
   Session_01_Claude.json                       (JSON handoff)
 ```
 
-**Total:** 12 files added, 0 modified, 0 removed
+**Total:** 20 files added, 0 modified, 0 removed
 
 ### Not Committed (excluded by design)
-- `ai_reference/kicad_project_example/Ref_PowerBank_injoinic_IP5385_v0.8.kicad_pcb` (extracted board)
 - `ai_reference/kicad_project_example/__MACOSX/` (macOS metadata)
-- Other extracted KiCad project files
 - `SESSION_01_SUMMARY.md` (not in owned scope)
 
 ---
@@ -306,56 +343,61 @@ None. Session is documentation and baseline infrastructure only.
 | # | Command | Exit | Result | Runtime |
 |---|---------|------|--------|---------|
 | 1 | `python3 tools/pcb_trace_resistance.py --selftest` | 0 | 118/118 PASS | 0.220 s |
-| 2 | `python3 tools/pcb_trace_resistance.py --selftest <power-bank.kicad_pcb>` | 0 | 284/284 PASS | 27.882 s |
-| 3 | `python3 tools/pcb_trace_resistance.py --selftest <ref_board.kicad_pcb>` | N/A | BLOCKED | N/A |
-| 4 | `python3 tests/baseline/regression_compare.py all` | 0 | 118+284 match fixtures | ~28 s |
+| 2 | `python3 tools/pcb_trace_resistance.py --selftest <IP5385.kicad_pcb>` | 0 | 284/284 PASS | 27.882 s |
+| 3 | `python3 tools/pcb_trace_resistance.py --report ... --nets ... --format json` | 0 | 1 net, 11 pairs PASS | 9.512 s |
+| 4 | `python3 tests/baseline/regression_compare.py all` | 0 | 118+284+report match fixtures | ~38 s |
 | 5 | `python3 -m json.tool < .ai/handoffs/Session_01_Claude.json` | 0 | Valid JSON | <1 s |
 
 ---
 
 ## Decisions
 
-1. **Treat reference board as hard blocker for BASE-001:** Per coordinator directive, did not substitute a different board or repeat historical claims. BASE-001 remains open.
+1. **Canonical baseline changed:** 254/254 reference-board suite removed at coordinator direction. IP5385 report suite added as third canonical check. All obsolete 254/254 and 656/656 references removed from all artifacts.
 
-2. **Create actual golden fixtures (not deferred):** Previous attempt deferred fixture content. This repair creates actual JSON files from real test output with normalization applied and comparator verified.
+2. **KiCad project files committed:** Previously excluded; committed in alignment pass (coordinator directed) to make tests fully self-contained without external extraction.
 
-3. **Measured runtimes only:** Previous attempt used estimated ranges (~4-5 s, ~8-12 s). This repair captures actual wall-clock times (0.220 s headless, 27.882 s power-bank) using `time`.
+3. **V18 platform-dependent height:** Stored as `<platform_dependent>` sentinel in powerbank fixture. Comparator verifies only status=PASS, not the pixel value. Preserves semantic got-equals-want check during live selftest execution.
 
-4. **BASE-002 left open:** Inventory had critical errors (wrong tab name, wrong defaults). After correction, left open per coordinator status rules pending review.
+4. **Notes normalization:** First-branch location stripped from report notes (hash-map iteration order is volatile); count and message pattern preserved. Regression is against the stable pattern.
 
-5. **Model substitution recorded:** Prompt specified Haiku-4.5; actual model is claude-sonnet-4-6. Recorded in this handoff and in the inventory.
+5. **Create actual golden fixtures (not deferred):** All three suites have real fixture files from actual test runs with correct normalization applied.
+
+6. **Measured runtimes only:** Wall-clock times from actual runs (headless 0.220 s, powerbank 27.882 s, report 9.512 s).
+
+7. **BASE-002 closed:** All factual errors in compatibility_inventory.md corrected against v0.13 source in coordinator repair pass.
+
+8. **Model substitution recorded:** Prompt specified Haiku-4.5; actual model is claude-sonnet-4-6. Authorized by user. Recorded in this handoff and in the inventory.
 
 ---
 
 ## Assumptions
 
-1. v0.13 acceptance vectors are authoritative for all 656 checks.
-2. Reference board is a specific artifact with `/SDA` net and `Z1.SDA`/`Z2.SDA` pads; no substitute is acceptable.
-3. The power-bank board SHA-256 (`0a1ca4dcfbf8c6609319091f00a515854c3f78e60058272fbd93203d1276a6e9`) is stable; any change to the board file invalidates the fixture.
+1. v0.13 acceptance vectors are authoritative for all 118+284 selftest checks.
+2. The power-bank board SHA-256 (`0a1ca4dcfbf8c6609319091f00a515854c3f78e60058272fbd93203d1276a6e9`) is stable; any change to the board file invalidates the fixture.
+3. The net selection SHA-256 (`ff8e5ec8f10975670cb65495d2fe5f698ce803e1d7b4f295cfc6686c5aa7d111`) is stable; any change invalidates the report fixture.
 
 ---
 
 ## Deviations
 
 1. **Model substitution:** claude-sonnet-4-6 used instead of claude-haiku-4-5-20251001 (prompt specification). Authorized by user.
-2. **BASE-002 reopened:** Previous handoff claimed BASE-002 closed. Strict repair found critical errors requiring correction; status reset to open pending coordinator review.
-3. **Golden fixtures created (not deferred):** Previous repair deferred fixture content; strict repair instruction forbids deferral.
+2. **Canonical baseline changed:** 254/254 reference-board suite removed at coordinator direction; IP5385 report suite added.
+3. **KiCad project files committed:** Previously excluded; committed in alignment pass (coordinator directed).
+4. **Notes normalization added:** Not in original plan; required to handle hash-map order variance in branch location strings.
 
 ---
 
 ## Known Issues
 
-1. **Reference board unavailable** — Blocks BASE-001 closure (need 254/254). Severity: High.
-2. **SciPy not installed** — Power-bank suite runs pure-Python solver (27.9 s). With SciPy the sparse solver would be faster. Severity: Low (correctness unaffected).
-3. **Reference-board fixture missing** — `tests/baseline/fixtures/reference_254_selftest.json` cannot be created without the board. Severity: Medium.
-4. **Automated benchmark CI** — Performance thresholds recorded but not enforced in CI. Severity: Low (deferred to future session).
+1. **SciPy not installed** — Power-bank suite runs pure-Python solver (27.9 s). With SciPy the sparse solver would be faster. Severity: Low (correctness unaffected).
+2. **Automated benchmark CI** — Performance thresholds recorded but not enforced in CI. Severity: Low (deferred to future session).
 
 ---
 
 ## Dependent Session Impact
 
-- **Session 02 (Package and CI skeleton):** Can proceed with BASE-002 pending review. BASE-001 blocks full integration until reference board available.
-- **All subsequent sessions (03–34):** ADR-001 parity gates and corrected compatibility inventory are available. Regression comparator (`regression_compare.py`) provides immediate executable baseline check.
+- **Session 02 (Package and CI skeleton):** May proceed. BASE-001 and BASE-002 both closed. `regression_compare.py all` provides the canonical executable gate.
+- **All subsequent sessions (03–34):** ADR-001 parity gates and corrected compatibility inventory are available. Three-suite regression compare is the canonical gate.
 
 ---
 
@@ -363,19 +405,12 @@ None. Session is documentation and baseline infrastructure only.
 
 **For Coordinator:**
 
-1. Review `documents/compatibility_inventory.md` for correctness against your knowledge of v0.13.
-2. If inventory is correct → close BASE-002.
-3. Locate reference board (.kicad_pcb with `/SDA` net, `Z1.SDA`/`Z2.SDA` pads) and run:
-   ```bash
-   python3 tools/pcb_trace_resistance.py --selftest <ref_board.kicad_pcb>
-   # Expected: 254/254
-   ```
-4. If 254/254 pass → close BASE-001 and mark session INTEGRATED.
-5. If reference board unavailable → coordinate with project owner; escalate or defer.
-6. Assign Session 02 to next writer.
+1. Run `python3 tests/baseline/regression_compare.py all` to confirm exit 0.
+2. Review `documents/compatibility_inventory.md` against v0.13 source if desired.
+3. If satisfied → mark INTEGRATED and assign Session 02.
 
 ---
 
-**Handoff prepared by:** claude-sonnet-4-6 (authorized substitution for Haiku-4.5)  
-**Date:** 2026-08-26  
-**Status:** PARTIAL — 2/3 suites pass; BASE-001 and BASE-002 open; coordinator review required
+**Handoff prepared by:** claude-sonnet-4-6 (authorized substitution for Haiku-4.5)
+**Date:** 2026-08-27
+**Status:** READY_FOR_REVIEW — all three canonical suites pass; BASE-001 and BASE-002 closed

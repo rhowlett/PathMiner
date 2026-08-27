@@ -1,17 +1,20 @@
 # PathMiner v0.13 Baseline Tests
 
-**Baseline Commit:** fe507fd01017cd0930739cbd8c4cc3f916b47e98  
-**Test Date:** 2026-08-26  
-**Python Version:** 3.x (PySide6 installed)  
-**Platform:** macOS 13+ (Darwin)
+**Baseline Commit:** fe507fd01017cd0930739cbd8c4cc3f916b47e98
+**Test Date:** 2026-08-26
+**Python Version:** 3.12.13 [Clang 21.0.0]
+**Platform:** macOS-26.6.2-arm64-arm-64bit
 
 ---
 
-## Test Categories
+## Canonical Acceptance Suites
+
+All three suites must pass before a session is eligible for integration.
 
 ### 1. Headless Acceptance Tests (118 vectors)
-**Location:** Embedded in `tools/pcb_trace_resistance.py --selftest`  
-**Purpose:** Validate core calculations without GUI or board file  
+
+**Location:** Embedded in `tools/pcb_trace_resistance.py --selftest`
+**Purpose:** Validate core calculations without GUI or board file
 **Status:** 118/118 PASS ✓
 
 **Coverage:**
@@ -49,126 +52,142 @@ python3 tools/pcb_trace_resistance.py --selftest
 
 **Exit Code:** 0 (success)
 
+**Golden Fixture:** `tests/baseline/fixtures/headless_118_selftest.json`
+
 ---
 
-### 2. Reference Board Acceptance Tests (254 vectors)
-**Board:** Embedded KiCad reference project (included in package)  
-**Purpose:** Validate board parsing and routed-copper tracing  
-**Status:** Expected 254/254 PASS (to be verified during integration)
+### 2. Real-Board Acceptance Tests (284 vectors)
 
-**Coverage:**
-- Layer parsing and ordinal mapping
-- Copper zone detection and edge finding
-- Via parsing (through-via only)
-- Pad coordinate extraction with footprint rotation
-- Arc segment length calculation
-- Graph construction and connectivity
-- Network-resistance solution on real geometry
+**Board:** `ai_reference/kicad_project_example/Ref_PowerBank_injoinic_IP5385_v0.8.kicad_pcb`
+**Board SHA-256:** `0a1ca4dcfbf8c6609319091f00a515854c3f78e60058272fbd93203d1276a6e9`
+**Purpose:** Validate board parsing and routed-copper tracing on a real 4-layer power system PCB
+**Status:** 284/284 PASS ✓
+
+**Coverage (sample):**
+- V10: Network resistance on 5 pad-pair combinations, segment sums, unreachable pair handling
+- V15–V17: Skipped (not the reference test board) — expected
+- V18: Collapsible section UI (height stored as `<platform_dependent>` sentinel)
+- V19: Board label, JSON default dir
+- V20: Skipped (not the reference test board) — expected
+- V22: Zone-only pads, ladder vs. mesh comparison on real pour (within 5%), repeated pin collapsing
 
 **Run Command:**
 ```bash
-python3 tools/pcb_trace_resistance.py --selftest <reference_board.kicad_pcb>
+python3 tools/pcb_trace_resistance.py --selftest \
+  ai_reference/kicad_project_example/Ref_PowerBank_injoinic_IP5385_v0.8.kicad_pcb
 ```
 
-**Note:** This test requires the reference KiCad project from `ai_reference/kicad_project_example/`. Extract if needed before running.
+**Exit Code:** 0 (success)
+**Measured Runtime:** 27.882 s wall clock (27.10 s user, 0.61 s system, 99% CPU)
+
+**Golden Fixture:** `tests/baseline/fixtures/powerbank_284_selftest.json`
 
 ---
 
-### 3. Real-Board Acceptance Tests (284 vectors)
-**Board:** Power-bank reference project (injoinic IP5385 v0.8)  
-**Purpose:** Validate on a real, complex multi-layer power system PCB  
-**Status:** Expected 284/284 PASS (to be verified during integration)
+### 3. IP5385 Batch Report (1 net, 11 pairs)
 
-**Coverage:**
-- Complex stackup (4 copper layers + power/ground planes)
-- Dense zone regions
-- Via arrays and clusters
-- Multiple nets (power, ground, signal)
-- Mesh solver on large networks
-- Actual design review scenarios
+**Board:** `ai_reference/kicad_project_example/Ref_PowerBank_injoinic_IP5385_v0.8.kicad_pcb`
+**Net Selection:** `ai_reference/kicad_project_example/net_selection_PACK.json`
+**Net Selection SHA-256:** `ff8e5ec8f10975670cb65495d2fe5f698ce803e1d7b4f295cfc6686c5aa7d111`
+**Purpose:** Validate end-to-end batch report CLI for a real PACK_P power path
+**Status:** 1 net, 11 pairs PASS ✓
 
 **Run Command:**
 ```bash
-python3 tools/pcb_trace_resistance.py --selftest <power_bank.kicad_pcb>
+python3 tools/pcb_trace_resistance.py \
+  --report ai_reference/kicad_project_example/Ref_PowerBank_injoinic_IP5385_v0.8.kicad_pcb \
+  --nets   ai_reference/kicad_project_example/net_selection_PACK.json \
+  --format json
 ```
 
-**Note:** Board ZIP is at `ai_reference/kicad_project_example/Ref_PowerBank_injoinic_IP5385_v0.8.zip`. Extract before running.
+**Expected Output Structure:**
+- 1 net: `/Reference Design/PACK_P`
+- 11 pad pairs sourced from JP1.B
+- JSON output indented 2-space; resistance values frozen in golden fixture
+- Exit code 0
+
+**Measured Runtime:** 9.512 s wall clock
+
+**Golden Fixture:** `tests/baseline/fixtures/ip5385_pack_report.json`
 
 ---
 
-## Test Execution
+## Executable Regression Comparator
 
-### Complete Test Suite
+The comparator runs all three suites and diffs live output against golden fixtures:
+
 ```bash
-# Headless tests only
+# Run all three suites
+python3 tests/baseline/regression_compare.py all
+
+# Run individual suite
+python3 tests/baseline/regression_compare.py headless
+python3 tests/baseline/regression_compare.py powerbank
+python3 tests/baseline/regression_compare.py report
+```
+
+**Exit Codes:**
+- 0 — all vectors / pairs match golden fixture
+- 1 — one or more values differ from golden fixture
+- 2 — usage or I/O error
+
+**Normalization applied:**
+- Selftest: absolute paths replaced with `<normalized_path>` (macOS home, macOS temp, Linux temp, Linux home)
+- V18 "reopen restores height": stored as `<platform_dependent>` sentinel; comparator verifies only status=PASS
+- Report: generated timestamp and solve_seconds excluded; resistance values kept; notes branch-location stripped (hash-map order volatile)
+
+---
+
+## Test Execution (Complete Suite)
+
+```bash
+# Quick headless sanity check
 python3 tools/pcb_trace_resistance.py --selftest
 
-# With reference board (if extracted)
-python3 tools/pcb_trace_resistance.py --selftest ai_reference/kicad_project_example/ref_board.kicad_pcb
-
-# With real board (if extracted)
-python3 tools/pcb_trace_resistance.py --selftest ai_reference/kicad_project_example/PowerBank/IP5385.kicad_pcb
-```
-
-### Expected Output Summary
-```
-[PASS] V1 copper layer count                       got            4  want            4
-[PASS] V1 core thickness unplated mm               got         1.65  want         1.65
-[PASS] V1 F.Cu finished um                         got           60  want           60
-... (118 total tests)
-118/118 checks passed
+# Full canonical suite
+python3 tests/baseline/regression_compare.py all
 ```
 
 ---
 
 ## Performance Baseline
 
-### Hardware Context
-- **CPU:** [To be filled by first integration run]
-- **RAM:** [To be filled by first integration run]
-- **Python:** 3.9+ (PySide6 compatible)
-- **Dependencies:** PySide6, scipy (optional)
+| Suite | Wall Clock | User | System | CPU |
+|-------|------------|------|--------|-----|
+| Headless selftest (118 vectors) | 0.220 s | 0.12 s | 0.03 s | 67% |
+| Real-board selftest (284 vectors) | 27.882 s | 27.10 s | 0.61 s | 99% |
+| IP5385 batch report (1 net, 11 pairs) | 9.512 s | — | — | — |
 
-### Benchmark Scenarios
-Performance budgets (QA-006) to be recorded:
-- **Project load:** ms to parse and parse board file
-- **Interactive response:** ms to refresh GUI on selection change
-- **Simple solve:** ms to compute point-to-point on small net
-- **Mesh solve:** ms to solve large meshed pour network
-- **Batch solve:** seconds to run full audit (254+ pairs)
-- **Report generation:** seconds to render PDF
+**Regression threshold:** +20% wall-clock increase flags a potential regression.
 
-### Profile Instrumentation
-If profiling data is captured:
-- Solver backend (dense vs. sparse vs. scipy)
-- Matrix size for mesh networks
-- Time breakdown: parsing, graph build, solve, format
+Full details in `tests/baseline/PERFORMANCE_BASELINE_v0.13.txt`.
 
 ---
 
 ## Regression Test Integration
 
 ### GitHub Actions / CI
+
 When automated CI is configured, the test suite should:
-1. Run `--selftest` in headless mode (no GUI, no boards)
-2. Verify exit code 0 and 118/118 pass
-3. Reject PRs that break any acceptance vector
-4. Capture performance metrics for trend analysis
+1. Run `--selftest` in headless mode (118/118 target)
+2. Run `regression_compare.py all` against golden fixtures
+3. Reject PRs that break any acceptance vector or exceed performance threshold
 
 ### Local Pre-commit Hook
+
 Developers should run before committing:
 ```bash
-python3 tools/pcb_trace_resistance.py --selftest && echo "✓ Baseline tests pass"
+python3 tests/baseline/regression_compare.py all && echo "✓ Baseline tests pass"
 ```
 
 ---
 
 ## Known Limitations
 
-- **Board tests (254, 284):** Require external KiCad project files
 - **GUI tests:** None automated in v0.13 (manual QA via application use)
-- **Platform variation:** Tests may show small numeric differences on Windows/Linux (floating-point rounding)
+- **Platform variation:** V18 pixel height is DPI-dependent; stored as sentinel in fixtures
 - **Performance variance:** Timing tests vary by system load and scipy availability
+- **SciPy not installed on baseline system:** Power-bank suite uses pure-Python solver (27.9 s)
 
 ---
 
@@ -185,10 +204,11 @@ When refactoring:
 ## Test Data Files
 
 - `schema/pcb_net_selection.schema.json` — Net selection JSON schema (immutable)
-- `ai_reference/examples/nets.example.json` — Example net selection (immutable)
-- `ai_reference/examples/net_selection_PACK.json` — Real board example (immutable)
-- `ai_reference/doc_samples/*.md` — Markdown report examples (for visual regression)
-- `ai_reference/doc_samples/*.pdf` — PDF report examples (for visual regression)
+- `ai_reference/kicad_project_example/Ref_PowerBank_injoinic_IP5385_v0.8.kicad_pcb` — Real board (in repo)
+- `ai_reference/kicad_project_example/net_selection_PACK.json` — Real board net selection (in repo)
+- `tests/baseline/fixtures/headless_118_selftest.json` — Golden fixture, 118 normalized vectors
+- `tests/baseline/fixtures/powerbank_284_selftest.json` — Golden fixture, 284 normalized vectors
+- `tests/baseline/fixtures/ip5385_pack_report.json` — Golden fixture, 1 net / 11 pairs
 
 ---
 
@@ -196,9 +216,10 @@ When refactoring:
 
 | Date | Event | Details |
 |------|-------|---------|
-| 2026-08-26 | Session 01 | Baseline test suite established; 118/118 headless verified |
+| 2026-08-26 | Session 01 | Baseline test suite established; 118/118 headless verified; 284/284 powerbank verified; IP5385 report suite established |
+| 2026-08-26 | Coordinator repair | Removed obsolete reference-board section (254/254); added IP5385 report suite; updated comparator for path normalization and platform-dependent sentinel |
 
 ---
 
-**Test framework created by:** Session 01 (Claude Haiku-4.5)  
-**Status:** Closure requirement complete for QA-004 and QA-006 (initial budgets)
+**Test framework created by:** Session 01 (claude-sonnet-4-6, authorized substitution for Haiku-4.5)
+**Status:** All three canonical suites PASS

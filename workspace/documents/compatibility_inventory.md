@@ -24,8 +24,8 @@ python3 tools/pcb_trace_resistance.py <board.kicad_pcb>
 ```
 python3 tools/pcb_trace_resistance.py --selftest [board.kicad_pcb]
 ```
-- **Behavior:** Run 118 headless acceptance vectors; if board supplied, run additional reference-board or real-board tests
-- **Preserved:** All 656 acceptance vector IDs and expected values
+- **Behavior:** Run 118 headless acceptance vectors; if board supplied, run additional real-board vectors
+- **Preserved:** All acceptance vector IDs and expected values for available suites
 - **Output Format:** `[PASS] <vector_id> <description> got <value> want <expected>`
 - **Summary:** `<count>/<count> checks passed`
 - **Exit Code:** 0 on all pass, non-zero if any test fails
@@ -49,36 +49,35 @@ python3 tools/pcb_trace_resistance.py --emit-nets <board.kicad_pcb> --out sel.js
 
 ### 1.5 Dump Stackup
 ```
-python3 tools/pcb_trace_resistance.py --dump-stackup <board.kicad_pcb> [--plating <um|mil|oz>] [--outer-plating]
+python3 tools/pcb_trace_resistance.py --dump-stackup <board.kicad_pcb> [--plating UM] [--outer-plating]
 ```
 - **Behavior:** Parse board stackup and emit layer, copper weight, thickness, and plating details
 - **Preserved:** Layer order, thickness calculations, plating thickness modes
 - **Options:**
-  - `--plating` — specify barrel plating in micrometers, mil, or oz (D2)
+  - `--plating UM` — numeric micrometers only (e.g. `--plating 18`); unit conversion is GUI-only
   - `--outer-plating` — add 2× plating to outer layer thickness (D8)
-- **Output Format:** Human-readable table and JSON
+- **Output Format:** Human-readable text table (plain-text columns; no JSON output)
 
 ### 1.6 Report (Batch Mode)
 ```
 python3 tools/pcb_trace_resistance.py --report <board.kicad_pcb> --nets sel.json \
-    [--plating <um|mil|oz>] [--zone-model none|ladder|mesh] [--mesh-pitch <mm>] \
-    [--ambient <°C>] [--current <A>] [--format md|txt|json|pdf] [--out <FILE>]
+    [--plating UM] [--zone-model none|ladder|mesh] [--mesh-pitch <mm>] \
+    [--ambient <°C>] [--current <A>] [--format md|txt|json] [--out <FILE>]
 ```
 - **Behavior:** Read board and net selection, compute resistance for all selected pairs, emit report
 - **Preserved:** All option names, defaults, and output formats
 - **Options:**
-  - `--plating` — default: **18.0 µm** (IPC-6012 Class 2 minimum; D2 amended v0.11 in DEFAULT_OPTIONS); error only if explicitly 0 or null
+  - `--plating UM` — numeric micrometers; default: **18.0 µm** (IPC-6012 Class 2 minimum; D2 amended v0.11 in DEFAULT_OPTIONS); error only if explicitly 0 or null
   - `--zone-model` — default: `ladder` (none, ladder, mesh)
   - `--mesh-pitch` — default: 0.25 mm (for mesh model)
   - `--ambient` — default: 25°C, affects temperature rise
   - `--current` — default: **1.0 A** (from DEFAULT_OPTIONS; non-zero so temperature rise is computed by default)
-  - `--format` — default: `md` (Markdown)
-  - `--out` — default: stdout (- or FILE)
-- **Output Formats:**
+  - `--format` — default: `md`; accepted values: `md`, `txt`, `json`
+  - `--out` — default: stdout; or FILE path
+- **Output Formats (CLI only — PDF is GUI-only):**
   - **Markdown (.md):** Sections, tables, code blocks, details/summary
-  - **Text (.txt):** Plain ASCII, no formatting
-  - **PDF (.pdf):** A4, page margins, rendered from Markdown
-  - **JSON (.json):** Structured result with metadata, per-pair data, summaries
+  - **Text (.txt):** Plain ASCII, no special formatting
+  - **JSON (.json):** Structured result, indented (2-space, `json.dumps(indent=2)`), with `_meta`, `options`, `stackup`, `selection`, `nets` top-level keys
 
 ---
 
@@ -361,10 +360,12 @@ Table: Layer | Copper (oz) | Finished (µm) | Material | Thickness
 - Source terminal if from-source mode
 
 ### 6.4 Summary Section
-Table per selected net: Terminal Pairs | Distance | Path R | Network R | Margin | Pass/Fail
-- One row per pair (count varies by mode)
-- Distance in mm, resistance in ohms with scaling
-- Pass/Fail based on voltage budget (if provided)
+Table per selected net: Net | From | To | Zone | R @20 C | R @ambient | V in | I | Drop | V out | Parallel gain
+- One row per pair (count varies by pair mode)
+- Resistance values auto-scaled (mohm, uohm)
+- V in, I, Drop, V out shown only when voltage/current supplied; per-pair overrides marked with `*`
+- Parallel gain: percentage reduction from path to network resistance
+- No Margin or Pass/Fail columns (those do not exist in v0.13)
 
 ### 6.5 Detail Section
 Table: Layer (From) | Layer (To) | Type | Length | Width/Dia | Resistance | % of Total
@@ -405,10 +406,10 @@ Table: Layer (From) | Layer (To) | Type | Length | Width/Dia | Resistance | % of
 - **Net selection:** `.json` (UTF-8, schema-validated)
 
 ### 8.2 Output Files
-- **Markdown (.md):** UTF-8, with backtick code blocks, tables, bold/italic
-- **Text (.txt):** UTF-8, ASCII-safe (no box drawing)
-- **PDF (.pdf):** Generated via QPdfWriter, A4 page size, 12pt sans-serif
-- **JSON (.json):** UTF-8, compact (no pretty-print in v0.13)
+- **Markdown (.md):** UTF-8, with backtick code blocks, tables, bold/italic (CLI `--report` and GUI)
+- **Text (.txt):** UTF-8, ASCII-safe (no box drawing) (CLI `--report` and GUI)
+- **JSON (.json):** UTF-8, indented 2-space (`json.dumps(rep, indent=2, default=str)`) (CLI `--report` and GUI)
+- **PDF (.pdf):** GUI-only (Report tab → Generate); rendered via QPdfWriter, A4 page size, 12pt sans-serif; **not available from CLI `--report`**
 
 ### 8.3 Volatile Fields (Excluded from Golden Fixtures)
 - `generated` timestamp (ISO 8601 or similar)
@@ -455,7 +456,8 @@ Table: Layer (From) | Layer (To) | Type | Length | Width/Dia | Resistance | % of
 | Date | Session | Change |
 |------|---------|--------|
 | 2026-08-26 | 01 | Initial inventory from v0.13 baseline |
-| 2026-08-26 | 01 (repair) | Corrected: Setup tab (not Stackup), plating default 18 µm, current_a default 1.0 A, signal_voltage_v default 3.3 V, outer_plating_adds default true, max_pairs_warn default 28, zone model owned by Setup tab not Via/Path, schema defaults documented, model substitution recorded |
+| 2026-08-26 | 01 (repair 1) | Corrected: Setup tab (not Stackup), plating default 18 µm, current_a default 1.0 A, signal_voltage_v default 3.3 V, outer_plating_adds default true, max_pairs_warn default 28, zone model owned by Setup tab not Via/Path, schema defaults documented, model substitution recorded |
+| 2026-08-27 | 01 (coordinator repair) | Corrected: --dump-stackup --plating accepts numeric µm only (not unit string); --dump-stackup output is human-readable text only (no JSON); CLI --report does not support pdf (GUI-only); removed nonexistent Margin and Pass/Fail from summary table; JSON CLI output is indented (not compact); removed 656/254 from selftest coverage line |
 
 ---
 

@@ -75,6 +75,15 @@ _PASS_FAIL = re.compile(
     r"\s+\[(PASS|FAIL)\]\s+(.+?)\s{2,}got\s+(.*?)\s{2,}want\s+(.*?)\s*$"
 )
 
+# V18 "reopen restores height" reports a pixel count that varies by platform
+# DPI and font metrics.  The selftest already verifies got == want at runtime
+# (PASS means they matched); we store a sentinel in the fixture so the
+# comparator does not reject valid runs on different-DPI systems.
+PLATFORM_DEPENDENT_SENTINEL = "<platform_dependent>"
+_PLATFORM_DEPENDENT_DESCRIPTIONS = {
+    "V18 reopen restores height",
+}
+
 # Tolerance for floating-point resistance comparison (relative).
 # 1e-9 matches the tool's own network-vs-path tolerance; we use 1e-6
 # to allow for minor platform floating-point ordering differences.
@@ -82,7 +91,31 @@ FLOAT_TOL = 1e-6
 
 
 def normalize_path(s: str) -> str:
-    return re.sub(r"/Users/[^/]+/[^\s]+", "<normalized_path>", s)
+    """Replace volatile filesystem paths with a stable sentinel.
+
+    Handles:
+      /Users/<user>/...        macOS home-directory paths
+      /var/folders/<x>/...     macOS temp (mkdtemp) paths
+      /tmp/...                 Linux temp paths
+      /home/<user>/...         Linux home-directory paths
+    """
+    s = re.sub(r"/Users/[^/\s]+/\S+", "<normalized_path>", s)
+    s = re.sub(r"/var/folders/\S+", "<normalized_path>", s)
+    s = re.sub(r"/tmp/\S+", "<normalized_path>", s)
+    s = re.sub(r"/home/[^/\s]+/\S+", "<normalized_path>", s)
+    return s
+
+
+def normalize_vector(status: str, desc: str, got: str, want: str) -> dict:
+    """Build a selftest vector record with appropriate normalization applied."""
+    desc = desc.strip()
+    got = normalize_path(got.strip())
+    want = normalize_path(want.strip())
+    # Platform-dependent values: store sentinel; comparator checks status only
+    if desc in _PLATFORM_DEPENDENT_DESCRIPTIONS:
+        got = PLATFORM_DEPENDENT_SENTINEL
+        want = PLATFORM_DEPENDENT_SENTINEL
+    return {"status": status, "description": desc, "got": got, "want": want}
 
 
 def parse_selftest_output(text: str) -> list[dict]:
@@ -91,14 +124,7 @@ def parse_selftest_output(text: str) -> list[dict]:
         m = _PASS_FAIL.match(line)
         if m:
             status, desc, got, want = m.groups()
-            vectors.append(
-                {
-                    "status": status,
-                    "description": desc.strip(),
-                    "got": normalize_path(got.strip()),
-                    "want": normalize_path(want.strip()),
-                }
-            )
+            vectors.append(normalize_vector(status, desc, got, want))
     return vectors
 
 
@@ -229,11 +255,14 @@ def run_selftest_suite(name: str, suite: dict) -> int:
 
     failures = []
     for i, (live, gold) in enumerate(zip(live_vectors, golden_vectors)):
-        diffs = [
-            f"    {k}: live={live.get(k)!r} golden={gold.get(k)!r}"
-            for k in ("status", "description", "got", "want")
-            if live.get(k) != gold.get(k)
-        ]
+        diffs = []
+        for k in ("status", "description", "got", "want"):
+            lv, gv = live.get(k), gold.get(k)
+            # Platform-dependent: fixture stores sentinel; only check status
+            if gv == PLATFORM_DEPENDENT_SENTINEL:
+                continue
+            if lv != gv:
+                diffs.append(f"    {k}: live={lv!r} golden={gv!r}")
         if diffs:
             failures.append((i + 1, live.get("description", "?"), diffs))
 
