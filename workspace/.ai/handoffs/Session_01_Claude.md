@@ -5,6 +5,7 @@
 **Model:** claude-sonnet-4-6 (authorized substitution; prompt specified Haiku-4.5 / claude-haiku-4-5-20251001)
 **Effort Level:** Medium
 **Date:** 2026-08-26 (coordinator repair completed 2026-08-27)
+**Final Commit:** 92baa47
 
 ---
 
