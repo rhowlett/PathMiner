@@ -1,0 +1,14 @@
+(kicad_sch
+	(version 20250114)
+	(generator "eeschema")
+	(generator_version "9.0")
+	(uuid "9d3cc7db-0050-43e4-bacf-c7fd6449a141")
+	(paper "C")
+	(title_block
+		(title "DC Static Power Bank Reference 2-4S")
+		(date "2026-07-29")
+		(rev "v0.5")
+		(company "Iontra")
+	)
+	(lib_symbols)
+)

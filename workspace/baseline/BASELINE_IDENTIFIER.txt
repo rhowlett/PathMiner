@@ -1,0 +1,60 @@
+PathMiner v0.13 Immutable Baseline Identifier
+
+Baseline ID: pathminer-v0.13-baseline
+Baseline Commit: fe507fd01017cd0930739cbd8c4cc3f916b47e98
+Date Established: 2026-08-26
+Application: tools/pcb_trace_resistance.py (v0.13, 5545 lines)
+
+This commit represents the validated v0.13 implementation from which all
+refactoring work proceeds. No changes to the baseline itself are permitted
+after this point. All improvements, restructuring, and capability expansion
+must proceed through incremental sessions that preserve or improve upon the
+baseline acceptance criteria.
+
+The canonical acceptance baseline is defined by three verifiable checks:
+
+  1. Headless selftest (no board):
+       python3 tools/pcb_trace_resistance.py --selftest
+       Expected: 118/118 checks passed
+
+  2. Real-board selftest (IP5385 power-bank):
+       python3 tools/pcb_trace_resistance.py --selftest \
+         ai_reference/kicad_project_example/Ref_PowerBank_injoinic_IP5385_v0.8.kicad_pcb
+       Board SHA-256: 0a1ca4dcfbf8c6609319091f00a515854c3f78e60058272fbd93203d1276a6e9
+       Expected: 284/284 checks passed
+
+  3. IP5385 batch report (PACK_P net, net_selection_PACK.json):
+       python3 tools/pcb_trace_resistance.py \
+         --report ai_reference/kicad_project_example/Ref_PowerBank_injoinic_IP5385_v0.8.kicad_pcb \
+         --nets   ai_reference/kicad_project_example/net_selection_PACK.json \
+         --format json
+       Expected: 1 net, 11 pad pairs, exit 0
+       Resistance values frozen in tests/baseline/fixtures/ip5385_pack_report.json
+
+Executable regression comparison:
+  python3 tests/baseline/regression_compare.py all   # exit 0 = all baselines match
+
+Numerical behavior is frozen at the v0.13 values. Refactoring must preserve
+all results within documented tolerances unless explicitly authorized by
+the session coordinator.
+
+Preserved components:
+  - Core resistance models (trace, via, zone ladder, zone mesh)
+  - Nodal analysis solver (dense and sparse)
+  - KiCad board parsing and geometry extraction
+  - CLI command syntax and JSON schema
+  - GUI tab structure (Trace, Via/Path, Report, Setup)
+  - Report formatting (Markdown, Text, JSON via CLI; PDF via GUI)
+  - IPC-2221 temperature-rise calculation
+
+Permitted changes:
+  - Code reorganization and module extraction
+  - Internal optimization without changing results
+  - Bug fixes backed by test cases
+  - Schema extensions that do not break existing files
+
+Forbidden changes (without explicit session authorization):
+  - Numerical behavior outside documented tolerances
+  - Breaking changes to public APIs or CLI syntax
+  - Model simplification or replacement without proof
+  - Removal of validated acceptance vectors

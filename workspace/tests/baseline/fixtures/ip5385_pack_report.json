@@ -1,0 +1,1682 @@
+{
+  "_fixture_meta": {
+    "session": 1,
+    "date": "2026-08-26",
+    "suite": "ip5385-pack-report",
+    "description": "Batch report: /Reference Design/PACK_P net, from-source JP1.B, 11 pairs, net_selection_PACK.json",
+    "command": "python3 tools/pcb_trace_resistance.py --report ai_reference/kicad_project_example/Ref_PowerBank_injoinic_IP5385_v0.8.kicad_pcb --nets ai_reference/kicad_project_example/net_selection_PACK.json --format json",
+    "exit_code": 0,
+    "nets_count": 1,
+    "pairs_count": 11,
+    "measured_wall_clock_s": 9.512,
+    "source_board": "ai_reference/kicad_project_example/Ref_PowerBank_injoinic_IP5385_v0.8.kicad_pcb",
+    "source_board_sha256": "0a1ca4dcfbf8c6609319091f00a515854c3f78e60058272fbd93203d1276a6e9",
+    "net_selection": "ai_reference/kicad_project_example/net_selection_PACK.json",
+    "net_selection_sha256": "ff8e5ec8f10975670cb65495d2fe5f698ce803e1d7b4f295cfc6686c5aa7d111",
+    "environment": {
+      "python": "3.12.13",
+      "PySide6": "6.10.3",
+      "Qt": "6.10.3",
+      "scipy": "not installed",
+      "platform": "macOS arm64"
+    },
+    "normalized_for_regression": true,
+    "normalization_rules": [
+      "generated timestamp excluded from _meta",
+      "solve_seconds excluded per pair (runtime, volatile)",
+      "notes: first-branch location stripped (hash-map order volatile); count and message kept",
+      "resistance and voltage values kept as-is (these are the regression signal)"
+    ]
+  },
+  "report": {
+    "_meta": {
+      "version": "0.1",
+      "tool": "pcb_trace_resistance v0.13",
+      "board": "Ref_PowerBank_injoinic_IP5385_v0.8.kicad_pcb",
+      "backend": "python"
+    },
+    "options": {
+      "plating_um": 18.0,
+      "hole_convention": "bit",
+      "length_convention": "centre",
+      "outer_plating_adds": true,
+      "zone_model": "ladder",
+      "mesh_pitch_mm": 0.125,
+      "ambient_c": 25.0,
+      "current_a": 1.0,
+      "pairs": "all",
+      "max_pairs_warn": 28,
+      "signal_voltage_v": 3.3,
+      "sections": {
+        "assumptions": true,
+        "stackup": true,
+        "selection": true,
+        "summary": true,
+        "detail": true,
+        "notes": true
+      }
+    },
+    "stackup": [
+      {
+        "layer": "F.Cu",
+        "finished_um": 53.0,
+        "oz": 1.523,
+        "z_ctr_mm": 0.0085
+      },
+      {
+        "layer": "In1.Cu",
+        "finished_um": 35.0,
+        "oz": 1.006,
+        "z_ctr_mm": 0.1525
+      },
+      {
+        "layer": "In2.Cu",
+        "finished_um": 35.0,
+        "oz": 1.006,
+        "z_ctr_mm": 1.4275
+      },
+      {
+        "layer": "B.Cu",
+        "finished_um": 53.0,
+        "oz": 1.523,
+        "z_ctr_mm": 1.5715
+      }
+    ],
+    "selection": {
+      "selected": [
+        "/Reference Design/PACK_P"
+      ],
+      "skipped": {
+        "Net-(C1-Pad2)": "not matched by select",
+        "/Reference Design/V_DEM.1": "not matched by select",
+        "GNDREF": "ignored by pattern 'GNDREF'",
+        "/Reference Design/VBUS.USB_C": "not matched by select",
+        "/Reference Design/CSP.1": "not matched by select",
+        "/Reference Design/VBUS.6802": "not matched by select",
+        "/Reference Design/CSN.1": "not matched by select",
+        "/Reference Design/BST.1": "not matched by select",
+        "/Reference Design/BST.2": "not matched by select",
+        "/Reference Design/CSN.2": "not matched by select",
+        "/Reference Design/VCC.6802": "not matched by select",
+        "Net-(D15-K)": "not matched by select",
+        "/Reference Design/VCC_IO": "not matched by select",
+        "Net-(Q8-D)": "not matched by select",
+        "/Reference Design/V.1": "not matched by select",
+        "/Reference Design/S2_CTL": "not matched by select",
+        "Net-(C26-Pad1)": "not matched by select",
+        "/Reference Design/PACK_TEMP": "not matched by select",
+        "/Reference Design/PCON": "not matched by select",
+        "/Reference Design/PCIN": "not matched by select",
+        "/Reference Design/SW.1": "not matched by select",
+        "Net-(U1-VCC)": "not matched by select",
+        "/Reference Design/S1_CTL": "not matched by select",
+        "/Reference Design/LX.1": "not matched by select",
+        "/Reference Design/SW.2": "not matched by select",
+        "/Reference Design/LX.2": "not matched by select",
+        "/Reference Design/ISNS.1.O": "not matched by select",
+        "Net-(C51-Pad1)": "not matched by select",
+        "Net-(C52-Pad1)": "not matched by select",
+        "/Reference Design/ISNS.1.N": "not matched by select",
+        "/Reference Design/ISNS.1.P": "not matched by select",
+        "/Reference Design/I_DEM.1": "not matched by select",
+        "Net-(D4-K)": "not matched by select",
+        "Net-(U3-BST1)": "not matched by select",
+        "Net-(D15-A)": "not matched by select",
+        "/Reference Design/QI_TEMP": "not matched by select",
+        "Net-(U3-BST2)": "not matched by select",
+        "Net-(D2-A)": "not matched by select",
+        "Net-(U8-+)": "not matched by select",
+        "Net-(D4-A)": "not matched by select",
+        "Net-(D5-A)": "not matched by select",
+        "Net-(U8-V+)": "not matched by select",
+        "/Reference Design/CC2.USB_C": "not matched by select",
+        "/Reference Design/CC1.USB_C": "not matched by select",
+        "/Reference Design/DPC.USB_C": "not matched by select",
+        "/Reference Design/DMC.USB_C": "not matched by select",
+        "Net-(D1-K)": "not matched by select",
+        "/Reference Design/VOUT.USB_A.2": "not matched by select",
+        "/Reference Design/VOUT.G.USB_A.2": "not matched by select",
+        "Net-(D3-A)": "not matched by select",
+        "Net-(N3-D)": "not matched by select",
+        "Net-(N3-G)": "not matched by select",
+        "/Reference Design/LED.2": "not matched by select",
+        "Net-(N4-D)": "not matched by select",
+        "/Reference Design/DPA.1": "not matched by select",
+        "/Reference Design/LED.1": "not matched by select",
+        "Net-(N6-D)": "not matched by select",
+        "/Reference Design/V_SYS": "not matched by select",
+        "Net-(N8-D)": "not matched by select",
+        "/Reference Design/LED.4": "not matched by select",
+        "/Reference Design/LED.3": "not matched by select",
+        "Net-(N9-D)": "not matched by select",
+        "/Reference Design/VBUS.G.USB_C": "not matched by select",
+        "/Reference Design/DM.6802": "not matched by select",
+        "/Reference Design/LED.5": "not matched by select",
+        "Net-(N12-D)": "not matched by select",
+        "Net-(N13-D)": "not matched by select",
+        "/Reference Design/GPIO.1": "not matched by select",
+        "/Reference Design/DP.6802": "not matched by select",
+        "/Reference Design/S1": "not matched by select",
+        "/Reference Design/SBU.1.USB_C": "not matched by select",
+        "/Reference Design/SBU.2.USB_C": "not matched by select",
+        "Net-(LED1-1-Pad4)": "not matched by select",
+        "Net-(LED1-1-Pad5)": "not matched by select",
+        "Net-(LED1-Pad1)": "not matched by select",
+        "Net-(LED1-1-Pad2)": "not matched by select",
+        "Net-(Q4.1-G)": "not matched by select",
+        "Net-(Q4.2-G)": "not matched by select",
+        "Net-(Q6.1-G)": "not matched by select",
+        "Net-(Q6.2-G)": "not matched by select",
+        "/Reference Design/S2": "not matched by select",
+        "/Reference Design/DRV.2.L": "not matched by select",
+        "/Reference Design/VBUS_I.USB_C": "not matched by select",
+        "Net-(C13-Pad1)": "not matched by select",
+        "Net-(C14-Pad1)": "not matched by select",
+        "/Reference Design/VOUT.1": "not matched by select",
+        "/Reference Design/DRV.2.H": "not matched by select",
+        "/Reference Design/I2C_SDA": "not matched by select",
+        "/Reference Design/I2C_SCL": "not matched by select",
+        "/Reference Design/LT": "not matched by select",
+        "Net-(R23-Pad1)": "not matched by select",
+        "/Reference Design/V_COIL.1": "not matched by select",
+        "/Reference Design/Q_DET.1": "not matched by select",
+        "/Reference Design/CC1.6802": "not matched by select",
+        "Net-(R32-Pad1)": "not matched by select",
+        "/Reference Design/WAKE_KEY": "not matched by select",
+        "/Reference Design/HG.1": "not matched by select",
+        "Net-(U4-G)": "not matched by select",
+        "Net-(U5-G)": "not matched by select",
+        "/Reference Design/LG.1": "not matched by select",
+        "Net-(U7-G)": "not matched by select",
+        "/Reference Design/LG.2": "not matched by select",
+        "Net-(U6-G)": "not matched by select",
+        "/Reference Design/HG.2": "not matched by select",
+        "/Reference Design/DRV.1.L": "not matched by select",
+        "/Reference Design/DRV.1.H": "not matched by select",
+        "/Reference Design/VREF": "not matched by select",
+        "/Reference Design/Q.SRC": "not matched by select",
+        "Net-(R70-Pad1)": "not matched by select",
+        "Net-(LED1-1-Pad3)": "not matched by select",
+        "Net-(C65-Pad1)": "not matched by select",
+        "Net-(C66-Pad1)": "not matched by select",
+        "/Reference Design/GPIO.8.6802": "not matched by select",
+        "/Reference Design/V_IN": "not matched by select",
+        "Net-(U3-GPIO1)": "not matched by select",
+        "Net-(U8--)": "not matched by select",
+        "/Reference Design/OCS_OUT": "not matched by select",
+        "/Reference Design/OCS_IN": "not matched by select",
+        "Net-(Q5A-C1)": "not matched by select",
+        "Net-(Q5A-E1)": "not matched by select",
+        "Net-(Q5A-B1)": "not matched by select",
+        "Net-(JP1-C)": "not matched by select",
+        "Net-(JP1-A)": "not matched by select",
+        "Net-(N5-G)": "not matched by select",
+        "Net-(N5-D)": "not matched by select",
+        "Net-(Q5B-C2)": "not matched by select",
+        "Net-(Q5B-B2)": "not matched by select",
+        "Net-(Q5B-E2)": "not matched by select",
+        "Net-(R20-Pad1)": "not matched by select"
+      },
+      "unused_select_patterns": [],
+      "unused_ignore_patterns": []
+    },
+    "nets": [
+      {
+        "name": "/Reference Design/PACK_P",
+        "pairs": [
+          {
+            "from": "JP1.B",
+            "to": "U9.D",
+            "path_ohms": 0.006890718001700273,
+            "network_ohms": 0.005286915524033479,
+            "hot_ohms": 0.005390803414080736,
+            "current_a": 8.0,
+            "voltage_in_v": 8.0,
+            "voltage_out_v": 7.956873572687354,
+            "overridden": [
+              "current_a",
+              "voltage_v"
+            ],
+            "zone_model": "ladder",
+            "mesh_pitch_mm": null,
+            "nodes": 200,
+            "drop_v": 0.04312642731264589,
+            "power_w": 0.3450114185011671,
+            "parallel_gain_pct": 23.2748238611863,
+            "segments": [
+              {
+                "kind": "trace",
+                "layer": "B.Cu",
+                "length_mm": 1.1899494936611734,
+                "width_mm": 0.5,
+                "merged": 2,
+                "_r": 0.0007741407271969292
+              },
+              {
+                "kind": "via",
+                "from": "In2.Cu",
+                "to": "B.Cu",
+                "hole_mm": 0.3,
+                "pad_mm": 0.6,
+                "point": [
+                  103.5,
+                  98.1
+                ],
+                "declared": [
+                  "F.Cu",
+                  "B.Cu"
+                ],
+                "split": true,
+                "_r": 0.00015567836703002968
+              },
+              {
+                "kind": "via",
+                "from": "In1.Cu",
+                "to": "In2.Cu",
+                "hole_mm": 0.3,
+                "pad_mm": 0.6,
+                "point": [
+                  103.5,
+                  98.1
+                ],
+                "declared": [
+                  "F.Cu",
+                  "B.Cu"
+                ],
+                "split": true,
+                "_r": 0.0013784022080783886
+              },
+              {
+                "kind": "via",
+                "from": "F.Cu",
+                "to": "In1.Cu",
+                "hole_mm": 0.3,
+                "pad_mm": 0.6,
+                "point": [
+                  103.5,
+                  98.1
+                ],
+                "declared": [
+                  "F.Cu",
+                  "B.Cu"
+                ],
+                "split": true,
+                "_r": 0.00015567836703002982
+              },
+              {
+                "kind": "trace",
+                "layer": "F.Cu",
+                "length_mm": 6.528427121917769,
+                "width_mm": 0.5,
+                "merged": 2,
+                "_r": 0.004247172965353295
+              },
+              {
+                "kind": "pour",
+                "layer": "F.Cu",
+                "length_mm": 7.539660759497976,
+                "width_mm": 13.652028181339983,
+                "merged": 17,
+                "_r": 0.0001796453670116002
+              }
+            ],
+            "notes": [
+              "branch (and 16 more): the net is not a simple series chain - see the network figure for the effect of the parallel copper"
+            ]
+          },
+          {
+            "from": "JP1.B",
+            "to": "C17.1",
+            "path_ohms": 0.006888223950897067,
+            "network_ohms": 0.00528539165161006,
+            "hot_ohms": 0.005389249597564197,
+            "current_a": 2.0,
+            "voltage_in_v": 8.0,
+            "voltage_out_v": 7.989221500804872,
+            "overridden": [
+              "current_a",
+              "voltage_v"
+            ],
+            "zone_model": "ladder",
+            "mesh_pitch_mm": null,
+            "nodes": 200,
+            "drop_v": 0.010778499195128395,
+            "power_w": 0.02155699839025679,
+            "parallel_gain_pct": 23.269166489255444,
+            "segments": [
+              {
+                "kind": "trace",
+                "layer": "B.Cu",
+                "length_mm": 1.1899494936611734,
+                "width_mm": 0.5,
+                "merged": 2,
+                "_r": 0.0007741407271969292
+              },
+              {
+                "kind": "via",
+                "from": "In2.Cu",
+                "to": "B.Cu",
+                "hole_mm": 0.3,
+                "pad_mm": 0.6,
+                "point": [
+                  103.5,
+                  98.1
+                ],
+                "declared": [
+                  "F.Cu",
+                  "B.Cu"
+                ],
+                "split": true,
+                "_r": 0.00015567836703002968
+              },
+              {
+                "kind": "via",
+                "from": "In1.Cu",
+                "to": "In2.Cu",
+                "hole_mm": 0.3,
+                "pad_mm": 0.6,
+                "point": [
+                  103.5,
+                  98.1
+                ],
+                "declared": [
+                  "F.Cu",
+                  "B.Cu"
+                ],
+                "split": true,
+                "_r": 0.0013784022080783886
+              },
+              {
+                "kind": "via",
+                "from": "F.Cu",
+                "to": "In1.Cu",
+                "hole_mm": 0.3,
+                "pad_mm": 0.6,
+                "point": [
+                  103.5,
+                  98.1
+                ],
+                "declared": [
+                  "F.Cu",
+                  "B.Cu"
+                ],
+                "split": true,
+                "_r": 0.00015567836703002982
+              },
+              {
+                "kind": "trace",
+                "layer": "F.Cu",
+                "length_mm": 6.528427121917769,
+                "width_mm": 0.5,
+                "merged": 2,
+                "_r": 0.004247172965353295
+              },
+              {
+                "kind": "pour",
+                "layer": "F.Cu",
+                "length_mm": 7.434986214944256,
+                "width_mm": 13.652028181339983,
+                "merged": 15,
+                "_r": 0.00017715131620839441
+              }
+            ],
+            "notes": [
+              "branch (and 15 more): the net is not a simple series chain - see the network figure for the effect of the parallel copper"
+            ]
+          },
+          {
+            "from": "JP1.B",
+            "to": "C16.1",
+            "path_ohms": 0.006841424139759447,
+            "network_ohms": 0.0052552497027239745,
+            "hot_ohms": 0.005358515359382501,
+            "current_a": 2.0,
+            "voltage_in_v": 8.0,
+            "voltage_out_v": 7.989282969281235,
+            "overridden": [
+              "current_a",
+              "voltage_v"
+            ],
+            "zone_model": "ladder",
+            "mesh_pitch_mm": null,
+            "nodes": 200,
+            "drop_v": 0.010717030718765001,
+            "power_w": 0.021434061437530003,
+            "parallel_gain_pct": 23.184857489207566,
+            "segments": [
+              {
+                "kind": "trace",
+                "layer": "B.Cu",
+                "length_mm": 1.1899494936611734,
+                "width_mm": 0.5,
+                "merged": 2,
+                "_r": 0.0007741407271969292
+              },
+              {
+                "kind": "via",
+                "from": "In2.Cu",
+                "to": "B.Cu",
+                "hole_mm": 0.3,
+                "pad_mm": 0.6,
+                "point": [
+                  103.5,
+                  98.1
+                ],
+                "declared": [
+                  "F.Cu",
+                  "B.Cu"
+                ],
+                "split": true,
+                "_r": 0.00015567836703002968
+              },
+              {
+                "kind": "via",
+                "from": "In1.Cu",
+                "to": "In2.Cu",
+                "hole_mm": 0.3,
+                "pad_mm": 0.6,
+                "point": [
+                  103.5,
+                  98.1
+                ],
+                "declared": [
+                  "F.Cu",
+                  "B.Cu"
+                ],
+                "split": true,
+                "_r": 0.0013784022080783886
+              },
+              {
+                "kind": "via",
+                "from": "F.Cu",
+                "to": "In1.Cu",
+                "hole_mm": 0.3,
+                "pad_mm": 0.6,
+                "point": [
+                  103.5,
+                  98.1
+                ],
+                "declared": [
+                  "F.Cu",
+                  "B.Cu"
+                ],
+                "split": true,
+                "_r": 0.00015567836703002982
+              },
+              {
+                "kind": "trace",
+                "layer": "F.Cu",
+                "length_mm": 6.528427121917769,
+                "width_mm": 0.5,
+                "merged": 2,
+                "_r": 0.004247172965353295
+              },
+              {
+                "kind": "pour",
+                "layer": "F.Cu",
+                "length_mm": 5.470812546254827,
+                "width_mm": 13.652028181339983,
+                "merged": 7,
+                "_r": 0.0001303515050707739
+              }
+            ],
+            "notes": [
+              "branch (and 10 more): the net is not a simple series chain - see the network figure for the effect of the parallel copper"
+            ]
+          },
+          {
+            "from": "JP1.B",
+            "to": "R8.1",
+            "path_ohms": 0.07486379518787516,
+            "network_ohms": 0.00828280489947215,
+            "hot_ohms": 0.008445562015746777,
+            "current_a": 8.0,
+            "voltage_in_v": 8.0,
+            "voltage_out_v": 7.932435503874026,
+            "overridden": [
+              "current_a",
+              "mesh_pitch_mm",
+              "voltage_v",
+              "zone_model"
+            ],
+            "zone_model": "mesh",
+            "mesh_pitch_mm": 0.125,
+            "nodes": 16803,
+            "drop_v": 0.06756449612597422,
+            "power_w": 0.5405159690077938,
+            "parallel_gain_pct": 88.93616750435113,
+            "segments": [
+              {
+                "kind": "trace",
+                "layer": "B.Cu",
+                "length_mm": 1.1899494936611734,
+                "width_mm": 0.5,
+                "merged": 2,
+                "_r": 0.0007741407271969292
+              },
+              {
+                "kind": "via",
+                "from": "In2.Cu",
+                "to": "B.Cu",
+                "hole_mm": 0.3,
+                "pad_mm": 0.6,
+                "point": [
+                  103.5,
+                  98.1
+                ],
+                "declared": [
+                  "F.Cu",
+                  "B.Cu"
+                ],
+                "split": true,
+                "_r": 0.00015567836703002968
+              },
+              {
+                "kind": "via",
+                "from": "In1.Cu",
+                "to": "In2.Cu",
+                "hole_mm": 0.3,
+                "pad_mm": 0.6,
+                "point": [
+                  103.5,
+                  98.1
+                ],
+                "declared": [
+                  "F.Cu",
+                  "B.Cu"
+                ],
+                "split": true,
+                "_r": 0.0013784022080783886
+              },
+              {
+                "kind": "via",
+                "from": "F.Cu",
+                "to": "In1.Cu",
+                "hole_mm": 0.3,
+                "pad_mm": 0.6,
+                "point": [
+                  103.5,
+                  98.1
+                ],
+                "declared": [
+                  "F.Cu",
+                  "B.Cu"
+                ],
+                "split": true,
+                "_r": 0.00015567836703002982
+              },
+              {
+                "kind": "trace",
+                "layer": "F.Cu",
+                "length_mm": 6.528427121917769,
+                "width_mm": 0.5,
+                "merged": 2,
+                "_r": 0.004247172965353295
+              },
+              {
+                "kind": "mesh",
+                "r": 0.06745092091109206,
+                "cells": 207,
+                "_r": 0.06745092091109206
+              },
+              {
+                "kind": "trace",
+                "layer": "F.Cu",
+                "length_mm": 0.5480077555610001,
+                "width_mm": 0.254,
+                "_r": 0.0007018016420941645
+              }
+            ],
+            "notes": [
+              "branch (and 208 more): the net is not a simple series chain - see the network figure for the effect of the parallel copper"
+            ]
+          },
+          {
+            "from": "JP1.B",
+            "to": "C44.1",
+            "path_ohms": 0.0067131047476504365,
+            "network_ohms": 0.005129124396115907,
+            "hot_ohms": 0.005229911690499584,
+            "current_a": 2.0,
+            "voltage_in_v": 8.0,
+            "voltage_out_v": 7.989540176619001,
+            "overridden": [
+              "current_a",
+              "voltage_v"
+            ],
+            "zone_model": "ladder",
+            "mesh_pitch_mm": null,
+            "nodes": 200,
+            "drop_v": 0.010459823380999168,
+            "power_w": 0.020919646761998336,
+            "parallel_gain_pct": 23.59534687863938,
+            "segments": [
+              {
+                "kind": "trace",
+                "layer": "B.Cu",
+                "length_mm": 1.1899494936611734,
+                "width_mm": 0.5,
+                "merged": 2,
+                "_r": 0.0007741407271969292
+              },
+              {
+                "kind": "via",
+                "from": "In2.Cu",
+                "to": "B.Cu",
+                "hole_mm": 0.3,
+                "pad_mm": 0.6,
+                "point": [
+                  103.5,
+                  98.1
+                ],
+                "declared": [
+                  "F.Cu",
+                  "B.Cu"
+                ],
+                "split": true,
+                "_r": 0.00015567836703002968
+              },
+              {
+                "kind": "via",
+                "from": "In1.Cu",
+                "to": "In2.Cu",
+                "hole_mm": 0.3,
+                "pad_mm": 0.6,
+                "point": [
+                  103.5,
+                  98.1
+                ],
+                "declared": [
+                  "F.Cu",
+                  "B.Cu"
+                ],
+                "split": true,
+                "_r": 0.0013784022080783886
+              },
+              {
+                "kind": "via",
+                "from": "F.Cu",
+                "to": "In1.Cu",
+                "hole_mm": 0.3,
+                "pad_mm": 0.6,
+                "point": [
+                  103.5,
+                  98.1
+                ],
+                "declared": [
+                  "F.Cu",
+                  "B.Cu"
+                ],
+                "split": true,
+                "_r": 0.00015567836703002982
+              },
+              {
+                "kind": "trace",
+                "layer": "F.Cu",
+                "length_mm": 6.528427121917769,
+                "width_mm": 0.5,
+                "merged": 2,
+                "_r": 0.004247172965353295
+              },
+              {
+                "kind": "pour",
+                "layer": "F.Cu",
+                "length_mm": 0.08528715553060806,
+                "width_mm": 13.652028181339983,
+                "_r": 2.0321129617629746e-06
+              }
+            ],
+            "notes": [
+              "branch (and 5 more): the net is not a simple series chain - see the network figure for the effect of the parallel copper"
+            ]
+          },
+          {
+            "from": "JP1.B",
+            "to": "CP2.1",
+            "path_ohms": 0.006768246207482901,
+            "network_ohms": 0.005184265855947908,
+            "hot_ohms": 0.005286136680017283,
+            "current_a": 2.0,
+            "voltage_in_v": 8.0,
+            "voltage_out_v": 7.989427726639965,
+            "overridden": [
+              "current_a",
+              "voltage_v"
+            ],
+            "zone_model": "ladder",
+            "mesh_pitch_mm": null,
+            "nodes": 200,
+            "drop_v": 0.010572273360034566,
+            "power_w": 0.021144546720069133,
+            "parallel_gain_pct": 23.40311364240505,
+            "segments": [
+              {
+                "kind": "trace",
+                "layer": "B.Cu",
+                "length_mm": 1.1899494936611734,
+                "width_mm": 0.5,
+                "merged": 2,
+                "_r": 0.0007741407271969292
+              },
+              {
+                "kind": "via",
+                "from": "In2.Cu",
+                "to": "B.Cu",
+                "hole_mm": 0.3,
+                "pad_mm": 0.6,
+                "point": [
+                  103.5,
+                  98.1
+                ],
+                "declared": [
+                  "F.Cu",
+                  "B.Cu"
+                ],
+                "split": true,
+                "_r": 0.00015567836703002968
+              },
+              {
+                "kind": "via",
+                "from": "In1.Cu",
+                "to": "In2.Cu",
+                "hole_mm": 0.3,
+                "pad_mm": 0.6,
+                "point": [
+                  103.5,
+                  98.1
+                ],
+                "declared": [
+                  "F.Cu",
+                  "B.Cu"
+                ],
+                "split": true,
+                "_r": 0.0013784022080783886
+              },
+              {
+                "kind": "via",
+                "from": "F.Cu",
+                "to": "In1.Cu",
+                "hole_mm": 0.3,
+                "pad_mm": 0.6,
+                "point": [
+                  103.5,
+                  98.1
+                ],
+                "declared": [
+                  "F.Cu",
+                  "B.Cu"
+                ],
+                "split": true,
+                "_r": 0.00015567836703002982
+              },
+              {
+                "kind": "trace",
+                "layer": "F.Cu",
+                "length_mm": 6.528427121917769,
+                "width_mm": 0.5,
+                "merged": 2,
+                "_r": 0.004247172965353295
+              },
+              {
+                "kind": "pour",
+                "layer": "F.Cu",
+                "length_mm": 2.399557252423346,
+                "width_mm": 13.652028181339983,
+                "_r": 5.717357279422762e-05
+              }
+            ],
+            "notes": [
+              "branch (and 5 more): the net is not a simple series chain - see the network figure for the effect of the parallel copper"
+            ]
+          },
+          {
+            "from": "JP1.B",
+            "to": "U2.CSP2",
+            "path_ohms": 0.1953908682693411,
+            "network_ohms": 0.19376235733097796,
+            "hot_ohms": 0.19756978765253166,
+            "current_a": 0.0001,
+            "voltage_in_v": 8.0,
+            "voltage_out_v": 7.999980243021235,
+            "overridden": [
+              "current_a",
+              "voltage_v"
+            ],
+            "zone_model": "ladder",
+            "mesh_pitch_mm": null,
+            "nodes": 200,
+            "drop_v": 1.9756978765253167e-05,
+            "power_w": 1.9756978765253168e-09,
+            "parallel_gain_pct": 0.8334631770601897,
+            "segments": [
+              {
+                "kind": "trace",
+                "layer": "B.Cu",
+                "length_mm": 1.1899494936611734,
+                "width_mm": 0.5,
+                "merged": 2,
+                "_r": 0.0007741407271969292
+              },
+              {
+                "kind": "via",
+                "from": "In2.Cu",
+                "to": "B.Cu",
+                "hole_mm": 0.3,
+                "pad_mm": 0.6,
+                "point": [
+                  103.5,
+                  98.1
+                ],
+                "declared": [
+                  "F.Cu",
+                  "B.Cu"
+                ],
+                "split": true,
+                "_r": 0.00015567836703002968
+              },
+              {
+                "kind": "via",
+                "from": "In1.Cu",
+                "to": "In2.Cu",
+                "hole_mm": 0.3,
+                "pad_mm": 0.6,
+                "point": [
+                  103.5,
+                  98.1
+                ],
+                "declared": [
+                  "F.Cu",
+                  "B.Cu"
+                ],
+                "split": true,
+                "_r": 0.0013784022080783886
+              },
+              {
+                "kind": "via",
+                "from": "F.Cu",
+                "to": "In1.Cu",
+                "hole_mm": 0.3,
+                "pad_mm": 0.6,
+                "point": [
+                  103.5,
+                  98.1
+                ],
+                "declared": [
+                  "F.Cu",
+                  "B.Cu"
+                ],
+                "split": true,
+                "_r": 0.00015567836703002982
+              },
+              {
+                "kind": "trace",
+                "layer": "F.Cu",
+                "length_mm": 6.528427121917769,
+                "width_mm": 0.5,
+                "merged": 2,
+                "_r": 0.004247172965353295
+              },
+              {
+                "kind": "pour",
+                "layer": "F.Cu",
+                "length_mm": 25.453100678628807,
+                "width_mm": 13.652028181339983,
+                "merged": 33,
+                "_r": 0.0006064638395348629
+              },
+              {
+                "kind": "trace",
+                "layer": "F.Cu",
+                "length_mm": 0.5480077555610001,
+                "width_mm": 0.254,
+                "_r": 0.0007018016420941645
+              },
+              {
+                "kind": "trace",
+                "layer": "F.Cu",
+                "length_mm": 5.08699898732233,
+                "width_mm": 0.1524,
+                "merged": 5,
+                "_r": 0.010857705955211825
+              },
+              {
+                "kind": "via",
+                "from": "F.Cu",
+                "to": "In2.Cu",
+                "hole_mm": 0.3,
+                "pad_mm": 0.6,
+                "point": [
+                  138.05,
+                  94.9054
+                ],
+                "declared": [
+                  "F.Cu",
+                  "B.Cu"
+                ],
+                "split": false,
+                "_r": 0.0015340805751084185
+              },
+              {
+                "kind": "trace",
+                "layer": "In2.Cu",
+                "length_mm": 6.715310678118637,
+                "width_mm": 0.1524,
+                "merged": 3,
+                "_r": 0.021704528700930877
+              },
+              {
+                "kind": "via",
+                "from": "In1.Cu",
+                "to": "In2.Cu",
+                "hole_mm": 0.3,
+                "pad_mm": 0.6,
+                "point": [
+                  137.9,
+                  101.4
+                ],
+                "declared": [
+                  "F.Cu",
+                  "B.Cu"
+                ],
+                "split": false,
+                "_r": 0.0013784022080783886
+              },
+              {
+                "kind": "trace",
+                "layer": "In1.Cu",
+                "length_mm": 43.79368400362927,
+                "width_mm": 0.1524,
+                "merged": 7,
+                "_r": 0.1415453903679356
+              },
+              {
+                "kind": "via",
+                "from": "In1.Cu",
+                "to": "B.Cu",
+                "hole_mm": 0.3,
+                "pad_mm": 0.6,
+                "point": [
+                  179.5624,
+                  103.7176
+                ],
+                "declared": [
+                  "F.Cu",
+                  "B.Cu"
+                ],
+                "split": false,
+                "_r": 0.0015340805751084183
+              },
+              {
+                "kind": "trace",
+                "layer": "B.Cu",
+                "length_mm": 5.508076794268603,
+                "width_mm": 0.2032,
+                "merged": 9,
+                "_r": 0.008817341770649858
+              }
+            ],
+            "notes": [
+              "branch (and 26 more): the net is not a simple series chain - see the network figure for the effect of the parallel copper"
+            ]
+          },
+          {
+            "from": "JP1.B",
+            "to": "U2.BAT",
+            "path_ohms": 0.0967364189058373,
+            "network_ohms": 0.09510790796794395,
+            "hot_ohms": 0.09697677835951404,
+            "current_a": 0.0001,
+            "voltage_in_v": 8.0,
+            "voltage_out_v": 7.999990302322164,
+            "overridden": [
+              "current_a",
+              "voltage_v"
+            ],
+            "zone_model": "ladder",
+            "mesh_pitch_mm": null,
+            "nodes": 200,
+            "drop_v": 9.697677835951404e-06,
+            "power_w": 9.697677835951404e-10,
+            "parallel_gain_pct": 1.6834517509672686,
+            "segments": [
+              {
+                "kind": "trace",
+                "layer": "B.Cu",
+                "length_mm": 1.1899494936611734,
+                "width_mm": 0.5,
+                "merged": 2,
+                "_r": 0.0007741407271969292
+              },
+              {
+                "kind": "via",
+                "from": "In2.Cu",
+                "to": "B.Cu",
+                "hole_mm": 0.3,
+                "pad_mm": 0.6,
+                "point": [
+                  103.5,
+                  98.1
+                ],
+                "declared": [
+                  "F.Cu",
+                  "B.Cu"
+                ],
+                "split": true,
+                "_r": 0.00015567836703002968
+              },
+              {
+                "kind": "via",
+                "from": "In1.Cu",
+                "to": "In2.Cu",
+                "hole_mm": 0.3,
+                "pad_mm": 0.6,
+                "point": [
+                  103.5,
+                  98.1
+                ],
+                "declared": [
+                  "F.Cu",
+                  "B.Cu"
+                ],
+                "split": true,
+                "_r": 0.0013784022080783886
+              },
+              {
+                "kind": "via",
+                "from": "F.Cu",
+                "to": "In1.Cu",
+                "hole_mm": 0.3,
+                "pad_mm": 0.6,
+                "point": [
+                  103.5,
+                  98.1
+                ],
+                "declared": [
+                  "F.Cu",
+                  "B.Cu"
+                ],
+                "split": true,
+                "_r": 0.00015567836703002982
+              },
+              {
+                "kind": "trace",
+                "layer": "F.Cu",
+                "length_mm": 6.528427121917769,
+                "width_mm": 0.5,
+                "merged": 2,
+                "_r": 0.004247172965353295
+              },
+              {
+                "kind": "pour",
+                "layer": "F.Cu",
+                "length_mm": 25.66272782825981,
+                "width_mm": 13.652028181339983,
+                "merged": 34,
+                "_r": 0.000611458566410819
+              },
+              {
+                "kind": "trace",
+                "layer": "F.Cu",
+                "length_mm": 5.221320343509642,
+                "width_mm": 0.254,
+                "merged": 3,
+                "_r": 0.0066866411173752945
+              },
+              {
+                "kind": "via",
+                "from": "F.Cu",
+                "to": "In1.Cu",
+                "hole_mm": 0.3,
+                "pad_mm": 0.6,
+                "point": [
+                  139.95,
+                  101.5
+                ],
+                "declared": [
+                  "F.Cu",
+                  "B.Cu"
+                ],
+                "split": false,
+                "_r": 0.00015567836703002982
+              },
+              {
+                "kind": "trace",
+                "layer": "In1.Cu",
+                "length_mm": 38.958326112068534,
+                "width_mm": 0.254,
+                "merged": 3,
+                "_r": 0.07555022971564247
+              },
+              {
+                "kind": "via",
+                "from": "In1.Cu",
+                "to": "B.Cu",
+                "hole_mm": 0.3,
+                "pad_mm": 0.6,
+                "point": [
+                  177.5,
+                  102.9
+                ],
+                "declared": [
+                  "F.Cu",
+                  "B.Cu"
+                ],
+                "split": false,
+                "_r": 0.0015340805751084183
+              },
+              {
+                "kind": "trace",
+                "layer": "B.Cu",
+                "length_mm": 3.42781745930521,
+                "width_mm": 0.2032,
+                "merged": 2,
+                "_r": 0.0054872579295815824
+              }
+            ],
+            "notes": [
+              "branch (and 27 more): the net is not a simple series chain - see the network figure for the effect of the parallel copper"
+            ]
+          },
+          {
+            "from": "JP1.B",
+            "to": "U11.D",
+            "path_ohms": 0.008581037732938569,
+            "network_ohms": 0.005359727556164175,
+            "hot_ohms": 0.005465046202642801,
+            "current_a": 8.0,
+            "voltage_in_v": 8.0,
+            "voltage_out_v": 7.956279630378858,
+            "overridden": [
+              "current_a",
+              "voltage_v"
+            ],
+            "zone_model": "ladder",
+            "mesh_pitch_mm": null,
+            "nodes": 200,
+            "drop_v": 0.04372036962114241,
+            "power_w": 0.3497629569691393,
+            "parallel_gain_pct": 37.53986728678862,
+            "segments": [
+              {
+                "kind": "trace",
+                "layer": "B.Cu",
+                "length_mm": 1.1899494936611734,
+                "width_mm": 0.5,
+                "merged": 2,
+                "_r": 0.0007741407271969292
+              },
+              {
+                "kind": "via",
+                "from": "In2.Cu",
+                "to": "B.Cu",
+                "hole_mm": 0.3,
+                "pad_mm": 0.6,
+                "point": [
+                  103.5,
+                  98.1
+                ],
+                "declared": [
+                  "F.Cu",
+                  "B.Cu"
+                ],
+                "split": true,
+                "_r": 0.00015567836703002968
+              },
+              {
+                "kind": "via",
+                "from": "In1.Cu",
+                "to": "In2.Cu",
+                "hole_mm": 0.3,
+                "pad_mm": 0.6,
+                "point": [
+                  103.5,
+                  98.1
+                ],
+                "declared": [
+                  "F.Cu",
+                  "B.Cu"
+                ],
+                "split": true,
+                "_r": 0.0013784022080783886
+              },
+              {
+                "kind": "via",
+                "from": "F.Cu",
+                "to": "In1.Cu",
+                "hole_mm": 0.3,
+                "pad_mm": 0.6,
+                "point": [
+                  103.5,
+                  98.1
+                ],
+                "declared": [
+                  "F.Cu",
+                  "B.Cu"
+                ],
+                "split": true,
+                "_r": 0.00015567836703002982
+              },
+              {
+                "kind": "trace",
+                "layer": "F.Cu",
+                "length_mm": 6.528427121917769,
+                "width_mm": 0.5,
+                "merged": 2,
+                "_r": 0.004247172965353295
+              },
+              {
+                "kind": "pour",
+                "layer": "F.Cu",
+                "length_mm": 6.748958407505965,
+                "width_mm": 13.652028181339983,
+                "merged": 11,
+                "_r": 0.0001608055254389406
+              },
+              {
+                "kind": "via",
+                "from": "F.Cu",
+                "to": "In1.Cu",
+                "hole_mm": 0.3,
+                "pad_mm": 0.6,
+                "point": [
+                  117.3,
+                  93.7
+                ],
+                "declared": [],
+                "in_pour": true,
+                "_r": 0.00015567836703002982
+              },
+              {
+                "kind": "via",
+                "from": "In1.Cu",
+                "to": "In2.Cu",
+                "hole_mm": 0.3,
+                "pad_mm": 0.6,
+                "point": [
+                  117.3,
+                  93.7
+                ],
+                "declared": [],
+                "in_pour": true,
+                "_r": 0.0013784022080783886
+              },
+              {
+                "kind": "via",
+                "from": "In2.Cu",
+                "to": "B.Cu",
+                "hole_mm": 0.3,
+                "pad_mm": 0.6,
+                "point": [
+                  117.3,
+                  93.7
+                ],
+                "declared": [],
+                "in_pour": true,
+                "_r": 0.00015567836703002968
+              },
+              {
+                "kind": "pour",
+                "layer": "B.Cu",
+                "length_mm": 0.8142384979044222,
+                "width_mm": 13.652028181339983,
+                "merged": 7,
+                "_r": 1.9400630672507017e-05
+              }
+            ],
+            "notes": [
+              "branch (and 19 more): the net is not a simple series chain - see the network figure for the effect of the parallel copper"
+            ]
+          },
+          {
+            "from": "JP1.B",
+            "to": "C15.1",
+            "path_ohms": 0.19112410425359655,
+            "network_ohms": 0.18949559331523325,
+            "hot_ohms": 0.19321918172387756,
+            "current_a": 2.0,
+            "voltage_in_v": 8.0,
+            "voltage_out_v": 7.6135616365522445,
+            "overridden": [
+              "current_a",
+              "voltage_v"
+            ],
+            "zone_model": "ladder",
+            "mesh_pitch_mm": null,
+            "nodes": 200,
+            "drop_v": 0.3864383634477551,
+            "power_w": 0.7728767268955102,
+            "parallel_gain_pct": 0.8520698865918441,
+            "segments": [
+              {
+                "kind": "trace",
+                "layer": "B.Cu",
+                "length_mm": 1.1899494936611734,
+                "width_mm": 0.5,
+                "merged": 2,
+                "_r": 0.0007741407271969292
+              },
+              {
+                "kind": "via",
+                "from": "In2.Cu",
+                "to": "B.Cu",
+                "hole_mm": 0.3,
+                "pad_mm": 0.6,
+                "point": [
+                  103.5,
+                  98.1
+                ],
+                "declared": [
+                  "F.Cu",
+                  "B.Cu"
+                ],
+                "split": true,
+                "_r": 0.00015567836703002968
+              },
+              {
+                "kind": "via",
+                "from": "In1.Cu",
+                "to": "In2.Cu",
+                "hole_mm": 0.3,
+                "pad_mm": 0.6,
+                "point": [
+                  103.5,
+                  98.1
+                ],
+                "declared": [
+                  "F.Cu",
+                  "B.Cu"
+                ],
+                "split": true,
+                "_r": 0.0013784022080783886
+              },
+              {
+                "kind": "via",
+                "from": "F.Cu",
+                "to": "In1.Cu",
+                "hole_mm": 0.3,
+                "pad_mm": 0.6,
+                "point": [
+                  103.5,
+                  98.1
+                ],
+                "declared": [
+                  "F.Cu",
+                  "B.Cu"
+                ],
+                "split": true,
+                "_r": 0.00015567836703002982
+              },
+              {
+                "kind": "trace",
+                "layer": "F.Cu",
+                "length_mm": 6.528427121917769,
+                "width_mm": 0.5,
+                "merged": 2,
+                "_r": 0.004247172965353295
+              },
+              {
+                "kind": "pour",
+                "layer": "F.Cu",
+                "length_mm": 25.453100678628807,
+                "width_mm": 13.652028181339983,
+                "merged": 33,
+                "_r": 0.0006064638395348629
+              },
+              {
+                "kind": "trace",
+                "layer": "F.Cu",
+                "length_mm": 0.5480077555610001,
+                "width_mm": 0.254,
+                "_r": 0.0007018016420941645
+              },
+              {
+                "kind": "trace",
+                "layer": "F.Cu",
+                "length_mm": 5.08699898732233,
+                "width_mm": 0.1524,
+                "merged": 5,
+                "_r": 0.010857705955211825
+              },
+              {
+                "kind": "via",
+                "from": "F.Cu",
+                "to": "In2.Cu",
+                "hole_mm": 0.3,
+                "pad_mm": 0.6,
+                "point": [
+                  138.05,
+                  94.9054
+                ],
+                "declared": [
+                  "F.Cu",
+                  "B.Cu"
+                ],
+                "split": false,
+                "_r": 0.0015340805751084185
+              },
+              {
+                "kind": "trace",
+                "layer": "In2.Cu",
+                "length_mm": 6.715310678118637,
+                "width_mm": 0.1524,
+                "merged": 3,
+                "_r": 0.021704528700930877
+              },
+              {
+                "kind": "via",
+                "from": "In1.Cu",
+                "to": "In2.Cu",
+                "hole_mm": 0.3,
+                "pad_mm": 0.6,
+                "point": [
+                  137.9,
+                  101.4
+                ],
+                "declared": [
+                  "F.Cu",
+                  "B.Cu"
+                ],
+                "split": false,
+                "_r": 0.0013784022080783886
+              },
+              {
+                "kind": "trace",
+                "layer": "In1.Cu",
+                "length_mm": 43.79368400362927,
+                "width_mm": 0.1524,
+                "merged": 7,
+                "_r": 0.1415453903679356
+              },
+              {
+                "kind": "via",
+                "from": "In1.Cu",
+                "to": "B.Cu",
+                "hole_mm": 0.3,
+                "pad_mm": 0.6,
+                "point": [
+                  179.5624,
+                  103.7176
+                ],
+                "declared": [
+                  "F.Cu",
+                  "B.Cu"
+                ],
+                "split": false,
+                "_r": 0.0015340805751084183
+              },
+              {
+                "kind": "trace",
+                "layer": "B.Cu",
+                "length_mm": 2.8426857418345866,
+                "width_mm": 0.2032,
+                "merged": 7,
+                "_r": 0.004550577754905315
+              }
+            ],
+            "notes": [
+              "branch (and 26 more): the net is not a simple series chain - see the network figure for the effect of the parallel copper"
+            ]
+          },
+          {
+            "from": "JP1.B",
+            "to": "C39.2",
+            "path_ohms": 0.09220230311821041,
+            "network_ohms": 0.09057379218031716,
+            "hot_ohms": 0.0923535671966604,
+            "current_a": 2.0,
+            "voltage_in_v": 8.0,
+            "voltage_out_v": 7.815292865606679,
+            "overridden": [
+              "current_a",
+              "voltage_v"
+            ],
+            "zone_model": "ladder",
+            "mesh_pitch_mm": null,
+            "nodes": 200,
+            "drop_v": 0.1847071343933208,
+            "power_w": 0.3694142687866416,
+            "parallel_gain_pct": 1.7662367238325594,
+            "segments": [
+              {
+                "kind": "trace",
+                "layer": "B.Cu",
+                "length_mm": 1.1899494936611734,
+                "width_mm": 0.5,
+                "merged": 2,
+                "_r": 0.0007741407271969292
+              },
+              {
+                "kind": "via",
+                "from": "In2.Cu",
+                "to": "B.Cu",
+                "hole_mm": 0.3,
+                "pad_mm": 0.6,
+                "point": [
+                  103.5,
+                  98.1
+                ],
+                "declared": [
+                  "F.Cu",
+                  "B.Cu"
+                ],
+                "split": true,
+                "_r": 0.00015567836703002968
+              },
+              {
+                "kind": "via",
+                "from": "In1.Cu",
+                "to": "In2.Cu",
+                "hole_mm": 0.3,
+                "pad_mm": 0.6,
+                "point": [
+                  103.5,
+                  98.1
+                ],
+                "declared": [
+                  "F.Cu",
+                  "B.Cu"
+                ],
+                "split": true,
+                "_r": 0.0013784022080783886
+              },
+              {
+                "kind": "via",
+                "from": "F.Cu",
+                "to": "In1.Cu",
+                "hole_mm": 0.3,
+                "pad_mm": 0.6,
+                "point": [
+                  103.5,
+                  98.1
+                ],
+                "declared": [
+                  "F.Cu",
+                  "B.Cu"
+                ],
+                "split": true,
+                "_r": 0.00015567836703002982
+              },
+              {
+                "kind": "trace",
+                "layer": "F.Cu",
+                "length_mm": 6.528427121917769,
+                "width_mm": 0.5,
+                "merged": 2,
+                "_r": 0.004247172965353295
+              },
+              {
+                "kind": "pour",
+                "layer": "F.Cu",
+                "length_mm": 25.66272782825981,
+                "width_mm": 13.652028181339983,
+                "merged": 34,
+                "_r": 0.000611458566410819
+              },
+              {
+                "kind": "trace",
+                "layer": "F.Cu",
+                "length_mm": 5.221320343509642,
+                "width_mm": 0.254,
+                "merged": 3,
+                "_r": 0.0066866411173752945
+              },
+              {
+                "kind": "via",
+                "from": "F.Cu",
+                "to": "In1.Cu",
+                "hole_mm": 0.3,
+                "pad_mm": 0.6,
+                "point": [
+                  139.95,
+                  101.5
+                ],
+                "declared": [
+                  "F.Cu",
+                  "B.Cu"
+                ],
+                "split": false,
+                "_r": 0.00015567836703002982
+              },
+              {
+                "kind": "trace",
+                "layer": "In1.Cu",
+                "length_mm": 38.958326112068534,
+                "width_mm": 0.254,
+                "merged": 3,
+                "_r": 0.07555022971564247
+              },
+              {
+                "kind": "via",
+                "from": "In1.Cu",
+                "to": "B.Cu",
+                "hole_mm": 0.3,
+                "pad_mm": 0.6,
+                "point": [
+                  177.5,
+                  102.9
+                ],
+                "declared": [
+                  "F.Cu",
+                  "B.Cu"
+                ],
+                "split": false,
+                "_r": 0.0015340805751084183
+              },
+              {
+                "kind": "trace",
+                "layer": "B.Cu",
+                "length_mm": 0.732548339959382,
+                "width_mm": 0.25,
+                "merged": 2,
+                "_r": 0.0009531421419546977
+              }
+            ],
+            "notes": [
+              "branch (and 27 more): the net is not a simple series chain - see the network figure for the effect of the parallel copper"
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

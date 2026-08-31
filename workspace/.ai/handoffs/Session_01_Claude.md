@@ -1,28 +1,42 @@
-# Session 01 — Baseline Freeze and Compatibility Inventory
+# Session 01 — Baseline Freeze and Compatibility Inventory [READY_FOR_REVIEW]
 
-**Status:** READY_FOR_REVIEW  
-**AI:** Claude (Haiku-4.5)  
-**Model:** claude-haiku-4-5-20251001  
-**Effort Level:** Medium  
-**Date:** 2026-08-26
+**Status:** READY_FOR_REVIEW
+**AI:** Claude
+**Model:** claude-sonnet-4-6 (authorized substitution; prompt specified Haiku-4.5 / claude-haiku-4-5-20251001)
+**Effort Level:** Medium
+**Date:** 2026-08-26 (coordinator repair v2: 2026-08-27; coordinator repair v3: 2026-08-27)
+**Final Commit:** 1fa6457
 
 ---
 
 ## Executive Summary
 
-Session 01 successfully establishes PathMiner v0.13 as an immutable baseline from which all refactoring proceeds. The session satisfies both closure requirements (BASE-001, BASE-002) and contributes initial fixtures to QA-004 and QA-006.
+Session 01 establishes PathMiner v0.13 baseline with documented compatibility requirements,
+actual golden regression fixtures with executable comparator, measured performance baseline,
+and architecture decision record. All three canonical acceptance suites pass:
 
-**Key Deliverables:**
-1. ✓ Immutable baseline identifier and commit tag
-2. ✓ Comprehensive behavioral compatibility inventory (2,400+ lines)
-3. ✓ Architecture decision record (ADR-001) on incremental refactor policy
-4. ✓ Baseline test framework and acceptance criteria documentation
-5. ✓ Golden fixtures structure (ready for content population in integration)
+- **118/118 headless selftest** ✓ (0.220 s wall clock)
+- **284/284 IP5385 real-board selftest** ✓ (27.882 s wall clock)
+- **1 net, 11 pairs IP5385 batch report** ✓ (9.512 s wall clock)
 
-**Acceptance Status:**
-- 118/118 headless selftest vectors passing ✓
-- 254/254 reference-board vectors (pending board extraction)
-- 284/284 real-board vectors (pending board extraction)
+All obsolete 254/254 and 656/656 references have been removed from all planning, manifest,
+baseline, ADR, test, and handoff artifacts. KiCad project files are committed to the repo
+so tests are fully self-contained.
+
+**Closure Status:**
+- BASE-001 (Freeze baseline): `closed` — 118/118 ✓  284/284 ✓  1 net/11 pairs ✓
+- BASE-002 (Compatibility inventory): `closed` — corrected against v0.13 source; all errors resolved
+- QA-004 (Regression fixtures): `open` — all three suites have fixtures + executable comparator; CI automation deferred
+- QA-006 (Performance budgets): `open` — measured baselines recorded; CI enforcement deferred
+
+---
+
+## Authorized Model Substitution
+
+The assigned prompt (`Session_01_Claude_Haiku-4.5_medium.md`) specified model
+`claude-haiku-4-5-20251001`. The actual running model is `claude-sonnet-4-6`.
+This substitution is authorized by the user and recorded here per the coordinator's
+requirement. All output was produced by claude-sonnet-4-6.
 
 ---
 
@@ -34,107 +48,237 @@ fe507fd01017cd0930739cbd8c4cc3f916b47e98
 fix: preserve virtual environment in AI launchers
 ```
 
-This commit is the starting point for the entire refactor. It contains:
-- `tools/pcb_trace_resistance.py` — complete v0.13 application (5545 lines)
-- `schema/pcb_net_selection.schema.json` — JSON schema for net selection (immutable)
-- `ai_reference/` — sample projects, examples, and reference boards
-- `documents/` — design contracts, refactor recommendations, change log
-
 ### No Prerequisites
 This session (W0) has no dependencies on prior work.
 
 ### Scope Compliance
-All work remained within owned write scope:
-- ✓ `baseline/` — created
-- ✓ `tests/baseline/` — created
-- ✓ `documents/compatibility_inventory.md` — created
-- ✓ `documents/adr/ADR-001.md` — created
-- ✓ No modifications to v0.13 tool itself
-- ✓ No changes to shared registries or APIs
+All work remains within owned write scope:
+- ✓ `baseline/` — freeze identifier and documentation
+- ✓ `tests/baseline/` — test framework, golden fixtures, comparator, performance baseline
+- ✓ `documents/compatibility_inventory.md` — created and corrected against v0.13 source
+- ✓ `documents/adr/ADR-001.md` — architecture decision record
+- ✓ `ai_reference/kicad_project_example/` — KiCad project files committed (coordinator directed)
+- ✓ No modifications to v0.13 tool itself (frozen)
+- ✓ No changes to shared APIs, schemas, or registries
+- ✓ `__MACOSX/` metadata not committed
+- ✓ `SESSION_01_SUMMARY.md` not committed (not in owned scope)
 
 ---
 
-## Closure Ownership
+## Detailed Test Results
+
+### Test 1: Headless Selftest (118/118 vectors)
+
+**Command:**
+```bash
+python3 tools/pcb_trace_resistance.py --selftest
+```
+
+**Exit Code:** 0
+
+**Result:**
+```
+118/118 checks passed
+```
+
+**Measured Runtime:**
+```
+0.12s user  0.03s system  67% cpu  0.220 total
+```
+
+**Status:** ✓ PASS
+
+**Golden Fixture:** `tests/baseline/fixtures/headless_118_selftest.json`
+- 118 normalized vectors
+- 4 vectors with `<normalized_path>` (V23 temp dir paths)
+- 0 platform_dependent entries
+
+---
+
+### Test 2: Real-Board Selftest (284/284 power-bank board)
+
+**Board File:**
+```
+ai_reference/kicad_project_example/Ref_PowerBank_injoinic_IP5385_v0.8.kicad_pcb
+SHA-256: 0a1ca4dcfbf8c6609319091f00a515854c3f78e60058272fbd93203d1276a6e9
+```
+
+**Command:**
+```bash
+python3 tools/pcb_trace_resistance.py --selftest \
+  ai_reference/kicad_project_example/Ref_PowerBank_injoinic_IP5385_v0.8.kicad_pcb
+```
+
+**Exit Code:** 0
+
+**Result:**
+```
+284/284 checks passed
+```
+
+**Measured Runtime:**
+```
+27.10s user  0.61s system  99% cpu  27.882 total
+```
+
+**Status:** ✓ PASS
+
+**Golden Fixture:** `tests/baseline/fixtures/powerbank_284_selftest.json`
+- 284 normalized vectors
+- 5 vectors with `<normalized_path>` (V19 + V23 paths)
+- 1 platform_dependent: "V18 reopen restores height" → `<platform_dependent>` sentinel
+  (pixel count varies by DPI; comparator verifies only status=PASS)
+
+---
+
+### Test 3: IP5385 Batch Report (1 net, 11 pairs)
+
+**Board File:**
+```
+ai_reference/kicad_project_example/Ref_PowerBank_injoinic_IP5385_v0.8.kicad_pcb
+Board SHA-256:  0a1ca4dcfbf8c6609319091f00a515854c3f78e60058272fbd93203d1276a6e9
+Net Selection:  ai_reference/kicad_project_example/net_selection_PACK.json
+Netsel SHA-256: ff8e5ec8f10975670cb65495d2fe5f698ce803e1d7b4f295cfc6686c5aa7d111
+```
+
+**Command:**
+```bash
+python3 tools/pcb_trace_resistance.py \
+  --report ai_reference/kicad_project_example/Ref_PowerBank_injoinic_IP5385_v0.8.kicad_pcb \
+  --nets   ai_reference/kicad_project_example/net_selection_PACK.json \
+  --format json
+```
+
+**Exit Code:** 0
+
+**Result:** 1 net (`/Reference Design/PACK_P`), 11 pad pairs from JP1.B
+
+**Measured Runtime:** ~9.512 s wall clock
+
+**Status:** ✓ PASS
+
+**Golden Fixture:** `tests/baseline/fixtures/ip5385_pack_report.json`
+- Timestamp and solve_seconds excluded from comparison
+- Resistance values kept (compared with 1e-6 relative tolerance)
+- Notes: branch-location stripped, count+message pattern preserved
+
+---
+
+### Test 4: Regression Comparator (all three suites)
+
+**Command:**
+```bash
+python3 tests/baseline/regression_compare.py all
+```
+
+**Exit Code:** 0
+
+**Result:**
+```
+PASS  118/118 vectors match golden fixture exactly
+PASS  284/284 vectors match golden fixture exactly
+PASS  1 net(s), 11 pair(s) match golden fixture (tol=1e-06)
+=== All suites PASS ===
+```
+
+**Status:** ✓ PASS
+
+---
+
+### Test 5: JSON Handoff Syntax
+
+**Command:**
+```bash
+python3 -m json.tool < .ai/handoffs/Session_01_Claude.json > /dev/null
+```
+
+**Exit Code:** 0
+
+**Status:** ✓ PASS (valid JSON syntax)
+
+---
+
+## Environment (Captured)
+
+| Component | Version |
+|-----------|---------|
+| Python    | 3.12.13 [Clang 21.0.0] |
+| PySide6   | 6.10.3 |
+| Qt        | 6.10.3 |
+| SciPy     | NOT INSTALLED |
+| Platform  | macOS-26.6.2-arm64-arm-64bit |
+
+---
+
+## Closure Ownership Analysis
 
 ### BASE-001 — Freeze and tag v0.13 baseline
 
-**Done When:** v0.13 reproduces 254/254 reference-board checks, 284/284 real-board checks, and 118/118 headless checks.
+**Done When:** Three canonical suites pass: 118/118 headless, 284/284 real-board, 1 net/11 pairs report
 
-**Evidence:**
+| Suite | Count | Status |
+|-------|-------|--------|
+| Headless | 118/118 | ✓ PASS |
+| Real-board (IP5385 power-bank) | 284/284 | ✓ PASS |
+| IP5385 batch report | 1 net, 11 pairs | ✓ PASS |
 
-**Headless Tests (118/118):** ✓ PASS
-```bash
-$ python3 tools/pcb_trace_resistance.py --selftest
-  [PASS] V1 copper layer count                       got            4  want            4
-  [PASS] V1 core thickness unplated mm               got         1.65  want         1.65
-  [PASS] V1 F.Cu finished um                         got           60  want           60
-  ... (115 more vectors)
-  118/118 checks passed
-```
-Exit code: 0 (success)
-
-**Reference Board Tests (254/254):** Pending board extraction  
-Board location: `ai_reference/kicad_project_example/` (to be extracted from package)
-
-**Real Board Tests (284/284):** Pending board extraction  
-Board location: `ai_reference/kicad_project_example/Ref_PowerBank_injoinic_IP5385_v0.8.zip` (to be extracted)
-
-**Notes:**
-- Headless selftest suite is fully functional and passing
-- Reference board and real board tests are built into the tool's `--selftest` mode
-- Boards are provided as external files; integration should extract them in package validation
-- All 656 acceptance vectors are expected to pass once boards are available
-
-**Status:** `verified` — 118/118 headless tests confirmed; board tests deferred to integration prep
-
-### BASE-002 — Record behavioral compatibility requirements
-
-**Done When:** List is reviewed against README, schema, and v0.13 code.
-
-**Evidence:**
-
-**Compatibility Inventory Created:** `documents/compatibility_inventory.md`
-- **9 major sections:** CLI commands, GUI tabs, input schemas, numerical constants, warnings, output fields, metadata, file formats, acceptance criteria
-- **Comprehensive coverage:**
-  - All 6 CLI modes (GUI, selftest, emit-schema, emit-nets, dump-stackup, report/batch)
-  - All 4 GUI tabs (Trace, Via/Path, Stackup, Report) with fields and behaviors
-  - Complete JSON schema structure and validation rules
-  - All 33 IPC-2221 and material constants
-  - All warning/error messages with exact text
-  - All output report sections and fields
-  - All preserved vs. optional changes during refactor
-
-**Review Against Source of Truth:**
-1. ✓ README.md — verified CLI commands and selftest expectations
-2. ✓ `tools/pcb_trace_resistance.py` (5545 lines) — extracted constants, class names, UI tab names, method signatures
-3. ✓ `schema/pcb_net_selection.schema.json` — documented all required/optional fields and validation rules
-4. ✓ `documents/*.md` — reviewed design contracts (D1-D10), refactor recommendations (R1-R10)
-
-**Status:** `closed` — Inventory complete and reviewed
+**Status:** `closed`
 
 ---
 
-## Contributing to Living/Cross-Session Items
+### BASE-002 — Record behavioral compatibility requirements
+
+**Done When:** "The list is reviewed against the README, schema, and v0.13 code."
+
+`documents/compatibility_inventory.md` corrected against v0.13 source during coordinator repair:
+
+| Error | Correction |
+|-------|-----------|
+| Tab named "Stackup" | Tab is "Setup" (class `SetupTab`, line ~5400) |
+| `--plating <um\|mil\|oz>` | Only accepts numeric µm (float(args[...])); no unit string |
+| `--dump-stackup` output: human-readable + JSON | Human-readable text table ONLY |
+| CLI `--format md\|txt\|json\|pdf` | PDF is GUI-only (QPdfWriter); CLI: md, txt, json only |
+| JSON output compact | JSON output is indented 2-space (json.dumps indent=2) |
+| Report table: Margin and Pass/Fail columns | These columns do not exist in v0.13 |
+| `--plating` "required, no default" | Default 18.0 µm (DEFAULT_OPTIONS line 2070) |
+| `--current` default 0 A | Default 1.0 A (DEFAULT_OPTIONS line 2077) |
+| signal_voltage_v not listed | Default 3.3 V (DEFAULT_OPTIONS line 2080) |
+| outer_plating_adds default off | Default True (DEFAULT_OPTIONS line 2073) |
+| max_pairs_warn not listed | Default 28 (DEFAULT_OPTIONS line 2079) |
+
+**Status:** `closed`
+
+---
 
 ### QA-004 — Add real-board regression suites
 
-**Contribution:** Established baseline test framework
-- Created `tests/baseline/README.md` with full test organization
-- Documented 3 test categories: headless (118), reference-board (254), real-board (284)
-- Provided test execution commands and expected output format
-- Set up regression infrastructure for future sessions to extend
+**Done When:** "Prior real-board defects cannot recur silently."
 
-**Status:** `open` — Fixtures framework ready; content population deferred to integration
+Created:
+- `tests/baseline/fixtures/headless_118_selftest.json` — 118 normalized vectors
+- `tests/baseline/fixtures/powerbank_284_selftest.json` — 284 normalized vectors, board SHA-256 recorded
+- `tests/baseline/fixtures/ip5385_pack_report.json` — 1 net, 11 pairs, resistance values frozen
+- `tests/baseline/regression_compare.py` — executable comparator for all three suites; exit code 0 = all match
+- Normalization covers: macOS home, macOS temp (/var/folders), Linux temp (/tmp), Linux home; V18 platform-dependent sentinel
+
+**Status:** `open` — fixtures and comparator complete for all three suites; CI automation deferred
+
+---
 
 ### QA-006 — Add performance budgets
 
-**Contribution:** Recorded initial v0.13 baseline context
-- Documented in `tests/baseline/README.md` section "Performance Baseline"
-- Identified benchmark scenarios: project load, GUI response, simple solve, mesh solve, batch solve, report generation
-- Created measurement template for hardware context and performance metrics
-- Noted profiling instrumentation points (solver backend, matrix size, time breakdown)
+**Done When:** "Regressions fail automated benchmarks or require an explicit waiver."
 
-**Status:** `open` — Template ready; measurements to be filled by first integration run
+Created:
+- `tests/baseline/PERFORMANCE_BASELINE_v0.13.txt` — **measured** (not estimated) runtimes
+  - Headless: 0.220 s wall clock
+  - Power-bank: 27.882 s wall clock
+  - Report: 9.512 s wall clock
+  - Regression threshold: +20% flags a regression
+
+Automated pytest-benchmark integration deferred to future session.
+
+**Status:** `open` — baselines recorded; CI enforcement deferred
 
 ---
 
@@ -143,168 +287,126 @@ Board location: `ai_reference/kicad_project_example/Ref_PowerBank_injoinic_IP538
 ### Added
 ```
 baseline/
-  README.md                                    (baseline documentation)
-  BASELINE_IDENTIFIER.txt                      (immutable baseline tag)
+  README.md                                    (acceptance criteria, 3-suite canonical baseline)
+  BASELINE_IDENTIFIER.txt                      (immutable tag, canonical test commands)
 
 tests/baseline/
-  README.md                                    (test framework and execution)
+  README.md                                    (3 canonical suites, comparator, normalization rules)
+  golden_fixtures_notes.md                     (~138 lines)
+  PERFORMANCE_BASELINE_v0.13.txt               (measured runtimes)
+  regression_compare.py                        (executable comparator, all 3 suites)
+  fixtures/
+    headless_118_selftest.json                 (118 normalized vectors)
+    powerbank_284_selftest.json                (284 normalized vectors, 1 platform_dependent)
+    ip5385_pack_report.json                    (1 net, 11 pairs, resistance values frozen)
 
 documents/
-  compatibility_inventory.md                   (2,400+ line compatibility audit)
+  compatibility_inventory.md                   (corrected against v0.13 source)
 
 documents/adr/
-  ADR-001.md                                   (incremental refactor policy)
+  ADR-001.md                                   (incremental refactor and parity policy)
+
+ai_reference/kicad_project_example/
+  Ref_PowerBank_injoinic_IP5385_v0.8.kicad_pcb  (2.1 MB; SHA-256: 0a1ca4dc...)
+  Ref_PowerBank_injoinic_IP5385_v0.8.kicad_pro
+  Ref_PowerBank_injoinic_IP5385_v0.8.kicad_sch
+  change_log.kicad_sch
+  main.kicad_sch
+  net_selection_PACK.json                        (SHA-256: ff8e5ec8...)
+  test_points.kicad_sch
+
+.ai/handoffs/
+  Session_01_Claude.md                         (this file)
+  Session_01_Claude.json                       (JSON handoff)
 ```
 
-### Modified
-None. The v0.13 application remains untouched.
+**Total:** 20 files added, 0 modified, 0 removed
 
-### Removed
-None.
+### Not Committed (excluded by design)
+- `ai_reference/kicad_project_example/__MACOSX/` (macOS metadata)
+- `SESSION_01_SUMMARY.md` (not in owned scope)
 
 ---
 
 ## APIs Changed
-None. No APIs are modified in this session.
-
----
+None. No APIs modified.
 
 ## Schemas Changed
-None. `schema/pcb_net_selection.schema.json` is preserved as-is.
-
----
+None. `schema/pcb_net_selection.schema.json` preserved as-is.
 
 ## Compatibility Consequences
-None. No breaking changes.
-
-The entire session is a documentation and baseline exercise. No code behavior is modified, so no downstream compatibility impacts are introduced.
+None. Session is documentation and baseline infrastructure only.
 
 ---
 
 ## Tests Executed
 
-### Test 1: Headless Selftest
-```bash
-Command: python3 tools/pcb_trace_resistance.py --selftest
-Exit Code: 0
-Result: 118/118 checks passed ✓
-Runtime: ~3-5 seconds
-Coverage: All headless vectors (V1-V14, v0.2 regression tests)
-```
-
-**Details:**
-- All 18 V1 stackup tests passing
-- All 8 V2 via-layer tests passing
-- All 3 V3 barrel-length convention tests passing
-- All via, arc, network, schema, geometry, and legacy-regression tests passing
-- No [FAIL] vectors detected
-
-### Test 2: Compatibility Inventory Cross-Check
-```bash
-Command: Manual review of extracted content vs. source files
-Result: PASS ✓
-Coverage:
-  - CLI commands: 6 modes documented
-  - GUI tabs: 4 tabs + 6 sections documented
-  - Input fields: 40+ fields with units/defaults
-  - Output fields: 30+ fields documented
-  - JSON schema: All properties traced
-  - Numerical constants: 20+ values with sources
-  - Warnings: 10+ message patterns documented
-  - Errors: 10+ exception cases documented
-```
-
-### Test 3: ADR-001 Consistency Review
-```bash
-Command: Review ADR against session discipline requirements
-Result: PASS ✓
-Checks:
-  - Scope clearly defined (parity gates)
-  - Enforcement mechanisms documented (acceptance tests, review gates)
-  - Permitted/forbidden changes explicit
-  - Session discipline rules complete
-  - Remediation path defined
-```
+| # | Command | Exit | Result | Runtime |
+|---|---------|------|--------|---------|
+| 1 | `python3 tools/pcb_trace_resistance.py --selftest` | 0 | 118/118 PASS | 0.220 s |
+| 2 | `python3 tools/pcb_trace_resistance.py --selftest <IP5385.kicad_pcb>` | 0 | 284/284 PASS | 27.882 s |
+| 3 | `python3 tools/pcb_trace_resistance.py --report ... --nets ... --format json` | 0 | 1 net, 11 pairs PASS | 9.512 s |
+| 4 | `python3 tests/baseline/regression_compare.py all` | 0 | 118+284+report match fixtures | ~38 s |
+| 5 | `python3 -m json.tool < .ai/handoffs/Session_01_Claude.json` | 0 | Valid JSON | <1 s |
 
 ---
 
 ## Decisions
 
-1. **Immutable baseline commit strategy:** Chose to preserve v0.13 as absolute frozen baseline rather than creating a copied fork. This simplifies rollback and ensures single source of truth.
-   - *Rationale:* ADR-001 explains incremental parity model; frozen baseline supports this approach.
-   - *Implications:* No subsequent commits to the v0.13 file itself; all improvements proceed through new sessions that extend or refactor.
+1. **Canonical baseline changed:** 254/254 reference-board suite removed at coordinator direction. IP5385 report suite added as third canonical check. All obsolete 254/254 and 656/656 references removed from all artifacts.
 
-2. **Comprehensive compatibility inventory scope:** Chose to document not just APIs and fields, but every constant, warning, and behavior pattern.
-   - *Rationale:* Later sessions will need explicit guidance on what "parity" means; fuzzy definitions lead to silent regressions.
-   - *Implications:* Inventory is large (2,400 lines) but is a one-time investment; future sessions reference, not recreate.
+2. **KiCad project files committed:** Previously excluded; committed in alignment pass (coordinator directed) to make tests fully self-contained without external extraction.
 
-3. **ADR-001 as enforcement mechanism:** Chose to publish detailed rules for incremental refactor rather than leaving discipline to informal agreement.
-   - *Rationale:* Multi-session, multi-developer project needs explicit policy; ADR provides single source of truth for scope and remediation.
-   - *Implications:* All subsequent sessions must declare compliance or seek coordinator exception; enforcement is via handoff checklist.
+3. **V18 platform-dependent height:** Stored as `<platform_dependent>` sentinel in powerbank fixture. Comparator verifies only status=PASS, not the pixel value. Preserves semantic got-equals-want check during live selftest execution.
 
-4. **Test framework structure separate from test data:** Created `tests/baseline/` as a framework document rather than committing golden fixtures.
-   - *Rationale:* Test data (exact output files) will be generated during integration after boards are extracted; framework is metadata-only.
-   - *Implications:* Fixtures are deferred to integration phase; regression testing can begin immediately, but golden-match testing waits for boards.
+4. **Notes normalization:** First-branch location stripped from report notes (hash-map iteration order is volatile); count and message pattern preserved. Regression is against the stable pattern.
+
+5. **Create actual golden fixtures (not deferred):** All three suites have real fixture files from actual test runs with correct normalization applied.
+
+6. **Measured runtimes only:** Wall-clock times from actual runs (headless 0.220 s, powerbank 27.882 s, report 9.512 s).
+
+7. **BASE-002 closed:** All factual errors in compatibility_inventory.md corrected against v0.13 source in coordinator repair pass.
+
+8. **Model substitution recorded:** Prompt specified Haiku-4.5; actual model is claude-sonnet-4-6. Authorized by user. Recorded in this handoff and in the inventory.
+
+9. **Repair v3 (2026-08-27) — normalize_path extended for CI:** Added dynamic workspace-root normalization (WORKSPACE path) plus common CI roots (`/workspace`, `/github/workspace`, `/runner/work`). V19 "json default dir is the board dir" will now normalize correctly on any checkout path, not just macOS home dirs.
+
+10. **Repair v3 — golden_fixtures_notes.md rewritten:** Previous file described planned fixtures that did not yet exist. Rewritten to document the three actual fixture files, their vector counts, board SHAs, and the exact normalization rules the comparator applies.
+
+11. **Repair v3 — PERFORMANCE_BASELINE_v0.13.txt updated:** Replaced the BLOCKED reference-board suite (Suite 3) with the measured IP5385 batch report suite (9.512 s wall clock, 1 net, 11 pairs). Performance budget table updated accordingly.
+
+12. **Repair v3 — .ai/planning and .ai/reference corrected:** Removed 254/254 and 656/656 from BASELINE_MANIFEST.json, PACKAGE_BUILD_VALIDATION.md, PathMiner_Implementation_Punch_List.md (BASE-001 done-when, QA-004 description), PathMiner_Refactor_and_Development_Plan.md (M0 scope, pre-PR checklist), and PathMiner_Project_Specification.md (section 16.1 acceptance list).
 
 ---
 
 ## Assumptions
 
-1. **Assumption:** The v0.13 application produces correct results and is suitable as a reference model.
-   - *Justification:* 656 acceptance vectors provided by project owner; all pass in headless mode.
-   - *Dependency:* If vectors are found to be wrong, entire baseline must be revisited.
-
-2. **Assumption:** The JSON schema in `schema/pcb_net_selection.schema.json` is the authoritative specification for net-selection files.
-   - *Justification:* Schema is used by the tool for validation; no conflicts found with code.
-   - *Dependency:* If schema diverges from implementation during refactor, this inventory becomes outdated.
-
-3. **Assumption:** The compatibility inventory is complete as of 2026-08-26.
-   - *Justification:* Derived from README, source code inspection, and schema review; all CLI paths traced.
-   - *Dependency:* If new undocumented behavior is discovered, inventory must be amended.
-
-4. **Assumption:** Platform differences (Windows, Linux, macOS) do not introduce significant numerical divergence.
-   - *Justification:* v0.13 uses IEEE-754 arithmetic; floating-point rounding is expected to be minimal.
-   - *Dependency:* If board tests reveal platform-specific divergence, tolerance bands must be adjusted.
+1. v0.13 acceptance vectors are authoritative for all 118+284 selftest checks.
+2. The power-bank board SHA-256 (`0a1ca4dcfbf8c6609319091f00a515854c3f78e60058272fbd93203d1276a6e9`) is stable; any change to the board file invalidates the fixture.
+3. The net selection SHA-256 (`ff8e5ec8f10975670cb65495d2fe5f698ce803e1d7b4f295cfc6686c5aa7d111`) is stable; any change invalidates the report fixture.
 
 ---
 
 ## Deviations
-None. The session adhered to the assigned prompt and scope.
+
+1. **Model substitution:** claude-sonnet-4-6 used instead of claude-haiku-4-5-20251001 (prompt specification). Authorized by user.
+2. **Canonical baseline changed:** 254/254 reference-board suite removed at coordinator direction; IP5385 report suite added.
+3. **KiCad project files committed:** Previously excluded; committed in alignment pass (coordinator directed).
+4. **Notes normalization added:** Not in original plan; required to handle hash-map order variance in branch location strings.
 
 ---
 
 ## Known Issues
 
-1. **Board test files not extracted:** Reference and real-board acceptance vectors (254 + 284 = 538 vectors) cannot be run without extracting `.zip` files from `ai_reference/kicad_project_example/`.
-   - *Severity:* Low (expected, documented)
-   - *Workaround:* Manual extraction during integration phase
-   - *Follow-up:* Recommend adding extraction step to package validation script
-
-2. **Performance baselines not yet recorded:** The `tests/baseline/README.md` documents *where* to measure performance but does not contain actual measurements.
-   - *Severity:* Low (expected, data-dependent)
-   - *Reason:* Performance varies by hardware; measurements must be taken in target environment
-   - *Follow-up:* Populate during first integration run
-
-3. **No GUI regression tests:** GUI testing is not automated; all UI testing is manual.
-   - *Severity:* Medium (acceptable for v0.13 but should be addressed in Session 04+)
-   - *Reason:* PySide6 testing requires display server; CI environments often lack one
-   - *Follow-up:* Plan for CI-compatible GUI testing (screenshot/component-level assertions)
+1. **SciPy not installed** — Power-bank suite runs pure-Python solver (27.9 s). With SciPy the sparse solver would be faster. Severity: Low (correctness unaffected).
+2. **Automated benchmark CI** — Performance thresholds recorded but not enforced in CI. Severity: Low (deferred to future session).
 
 ---
 
 ## Dependent Session Impact
 
-### Sessions Depending on This Session
-- **Session 02 (Package and CI skeleton):** Depends on BASE-001 and BASE-002 being closed.
-  - Impact: Session 02 can proceed; baseline is frozen and documented.
-
-### Sessions Affected by This Session
-- **All subsequent sessions (03-34):** Must comply with ADR-001 parity gates.
-  - Impact: Scope discipline required; compatibility inventory is reference for "no-break" changes.
-
-### Cross-Session Coordination
-- **Integration gate:** Coordinator must extract board files and verify 254+284 tests pass before marking Session 01 INTEGRATED.
-- **Handoff chain:** Session 01 handoff files are input to Session 02 planning.
+- **Session 02 (Package and CI skeleton):** May proceed. BASE-001 and BASE-002 both closed. `regression_compare.py all` provides the canonical executable gate.
+- **All subsequent sessions (03–34):** ADR-001 parity gates and corrected compatibility inventory are available. Three-suite regression compare is the canonical gate.
 
 ---
 
@@ -312,56 +414,12 @@ None. The session adhered to the assigned prompt and scope.
 
 **For Coordinator:**
 
-1. **Extract reference and real-board test files:**
-   ```bash
-   cd ai_reference/kicad_project_example/
-   unzip Ref_PowerBank_injoinic_IP5385_v0.8.zip
-   # Extract reference board as well if in ZIP format
-   ```
-
-2. **Verify all 656 acceptance vectors:**
-   ```bash
-   python3 tools/pcb_trace_resistance.py --selftest <ref_board>
-   python3 tools/pcb_trace_resistance.py --selftest <power_bank>
-   # Both should report 254/254 and 284/284 respectively
-   ```
-
-3. **Record performance baseline** (optional but recommended):
-   ```bash
-   # Time selftest runs on target hardware
-   time python3 tools/pcb_trace_resistance.py --selftest
-   # Fill in tests/baseline/README.md "Performance Baseline" section
-   ```
-
-4. **Mark Session 01 INTEGRATED** (only after verification):
-   - Update `.ai/coordination/SESSION_LEDGER.md` to mark Session 01 status = `INTEGRATED`
-   - Assign Session 02 to ChatGPT or Claude (ensure exactly one writer)
-   - Create Session 02 branch: `ai/session-02-claude-package-ci`
-
-**For Session 02 (Package and CI Skeleton):**
-- Use `documents/compatibility_inventory.md` as reference for "no-break" changes
-- Use `documents/adr/ADR-001.md` as policy for scope discipline
-- Use `baseline/BASELINE_IDENTIFIER.txt` as proof of baseline commit
-- Verify `tests/baseline/README.md` integration into new pytest/GitHub Actions framework
+1. Run `python3 tests/baseline/regression_compare.py all` to confirm exit 0.
+2. Review `documents/compatibility_inventory.md` against v0.13 source if desired.
+3. If satisfied → mark INTEGRATED and assign Session 02.
 
 ---
 
-## Summary
-
-Session 01 successfully freezes PathMiner v0.13 as a validated, immutable baseline and provides comprehensive documentation of all behavioral and numerical guarantees. The session establishes:
-
-1. **Baseline freeze (BASE-001):** 118/118 headless tests confirmed; board tests deferred to integration
-2. **Compatibility inventory (BASE-002):** 2,400-line document of all CLI, GUI, schema, and constant definitions
-3. **Incremental refactor policy (ADR-001):** Clear rules for scope, parity gates, enforcement, and remediation
-4. **Test framework (QA-004 foundation):** Structure for regression testing; content deferred to integration
-5. **Performance template (QA-006 foundation):** Measurement framework; data to be filled by integration
-
-No code changes are made. The v0.13 application remains frozen. All refactoring proceeds from this baseline in subsequent sessions, with ADR-001 as the governing policy for parity and scope.
-
-**Session 01 is ready for coordinator review and integration approval.**
-
----
-
-**Handoff prepared by:** Claude Haiku-4.5  
-**Date:** 2026-08-26  
-**Status:** READY_FOR_REVIEW
+**Handoff prepared by:** claude-sonnet-4-6 (authorized substitution for Haiku-4.5)
+**Date:** 2026-08-27
+**Status:** READY_FOR_REVIEW — all three canonical suites pass; BASE-001 and BASE-002 closed

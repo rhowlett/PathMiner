@@ -1,0 +1,90 @@
+PathMiner v0.13 — Performance Baseline
+Captured: 2026-08-26  Session 01 (claude-sonnet-4-6; authorized substitution for Haiku-4.5)
+Baseline commit: fe507fd01017cd0930739cbd8c4cc3f916b47e98
+
+=== System Configuration ===
+
+Platform:   macOS-26.6.2-arm64-arm-64bit  (Apple Silicon)
+Python:     3.12.13 [Clang 21.0.0]
+PySide6:    6.10.3
+Qt:         6.10.3
+SciPy:      NOT INSTALLED (fallback pure-Python solver used for all runs)
+Tool file:  tools/pcb_trace_resistance.py  (5545 lines, v0.13)
+
+=== Canonical Acceptance Suites ===
+
+All three suites must pass (regression_compare.py all) before integration.
+All timings captured with `time python3 tools/pcb_trace_resistance.py ...`
+on the system above.  Each run was a single cold start; no warm-up.
+
+Suite 1: Headless selftest (118 vectors, no board file)
+  Command:   python3 tools/pcb_trace_resistance.py --selftest
+  Result:    118/118 PASS  (exit 0)
+  Wall clock: 0.220 s
+  User time:  0.12 s
+  Sys time:   0.03 s
+  CPU:        67%
+  Measured:   2026-08-26
+
+Suite 2: Real-board selftest (284 vectors, IP5385 power-bank board)
+  Command:   python3 tools/pcb_trace_resistance.py --selftest \
+             ai_reference/kicad_project_example/Ref_PowerBank_injoinic_IP5385_v0.8.kicad_pcb
+  Board SHA-256: 0a1ca4dcfbf8c6609319091f00a515854c3f78e60058272fbd93203d1276a6e9
+  Result:    284/284 PASS  (exit 0)
+  Wall clock: 27.882 s
+  User time:  27.10 s
+  Sys time:    0.61 s
+  CPU:         99%
+  Measured:   2026-08-26
+
+Suite 3: IP5385 batch report (1 net, 11 pairs — PACK_P net)
+  Command:   python3 tools/pcb_trace_resistance.py \
+             --report ai_reference/kicad_project_example/Ref_PowerBank_injoinic_IP5385_v0.8.kicad_pcb \
+             --nets   ai_reference/kicad_project_example/net_selection_PACK.json \
+             --format json
+  Board SHA-256:  0a1ca4dcfbf8c6609319091f00a515854c3f78e60058272fbd93203d1276a6e9
+  Netsel SHA-256: ff8e5ec8f10975670cb65495d2fe5f698ce803e1d7b4f295cfc6686c5aa7d111
+  Result:    1 net, 11 pairs PASS  (exit 0)
+  Wall clock: 9.512 s
+  Measured:   2026-08-26
+
+=== Performance Budgets ===
+
+Regression threshold: +20% wall-clock increase flags a regression.
+
+  Scenario                              Baseline (s)   Budget (s)   Status
+  -------                               ------------   ----------   ------
+  Headless selftest (118 vectors)            0.220        0.264      PASS
+  Real-board selftest (284 vectors)         27.882       33.458      PASS
+  IP5385 batch report (1 net, 11 pairs)      9.512       11.414      PASS
+
+=== Scaling Notes ===
+
+- Headless suite is dominated by PySide6 import time (~0.15 s).
+  If the selftest refactors to avoid PySide6 import, expect < 0.05 s.
+- Power-bank suite (27.9 s) includes:
+    - Board parse and graph construction
+    - Dijkstra path tracing for 284 vectors
+    - Zone mesh computation (V22 ladder-vs-mesh comparison)
+  SciPy-accelerated sparse solver would reduce CPU-bound phases.
+- IP5385 report suite (9.5 s) is dominated by board parse and 11-pair
+  network solution; shares board-load time with the selftest but runs
+  a different code path (run_report vs run_selftest).
+
+=== Memory ===
+
+No memory profiling was performed.  Estimate: < 200 MB peak RSS for a 4-layer
+2.1 MB board.  Regression criterion: if RSS exceeds 512 MB on the power-bank
+board, investigate before committing the change.
+
+=== Automation Notes ===
+
+Automated benchmark enforcement is out of Session 01 scope.  A future session
+should wrap these measurements in pytest benchmarks (e.g., pytest-benchmark)
+and fail if wall clock exceeds the budget threshold.
+
+=== Revision History ===
+
+2026-08-26  Session 01 initial capture  (measured, not estimated)
+2026-08-27  Coordinator repair v3: replaced BLOCKED reference-board suite with
+            measured IP5385 batch report suite (9.512 s wall clock, 1 net, 11 pairs)

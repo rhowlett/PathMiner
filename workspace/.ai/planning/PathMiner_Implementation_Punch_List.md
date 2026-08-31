@@ -20,8 +20,9 @@ Every item remains open until its stated completion condition is met.
 
 ## 1. Protect the validated baseline — P0
 
-- [ ] **BASE-001 — Freeze and tag the v0.13 baseline.** Preserve the current single-file program, schemas, sample inputs, reports, and all acceptance boards.  
-  **Done when:** the archived version reproduces 254/254 reference-board checks, 284/284 real-board checks, and 118/118 headless checks.
+- [x] **BASE-001 — Freeze and tag the v0.13 baseline.** Preserve the current single-file program, schemas, sample inputs, reports, and acceptance board files.
+  **Done when:** the archived version reproduces 118/118 headless checks, 284/284 IP5385 real-board checks, and produces 1 net / 11 pairs from the IP5385 batch report.
+  **Status (Session 01):** CLOSED — all three suites verified PASS; golden fixtures and executable comparator committed.
 
 - [ ] **BASE-002 — Record behavioral compatibility requirements.** List every current CLI command, input field, report field, default, warning, and output format that must survive the refactor.  
   **Done when:** the list is reviewed against the README, schema, and v0.13 code.
@@ -288,8 +289,9 @@ Every item remains open until its stated completion condition is met.
 - [ ] **QA-003 — Add end-to-end workflow tests.** Project load → investigation selection → analysis → result → report.  
   **Done when:** product behavior, not just solver functions, is covered.
 
-- [ ] **QA-004 — Add real-board regression suites.** Include the reference board, the power-bank board, complex pours, zone-only pads, split nets, unreachable terminals, and large ground nets.  
+- [ ] **QA-004 — Add real-board regression suites.** Include the IP5385 power-bank board (selftest and batch report), complex pours, zone-only pads, split nets, unreachable terminals, and large ground nets.
   **Done when:** prior real-board defects cannot recur silently.
+  **Status (Session 01):** Partial — IP5385 selftest (284 vectors) and batch report (1 net, 11 pairs) fixtures and comparator committed; CI automation deferred.
 
 - [ ] **QA-005 — Add mesh refinement and fast-vs-mesh correlation tests.**  
   **Done when:** automatic solver choice is backed by measured error and cost.
