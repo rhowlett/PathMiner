@@ -1,0 +1,53 @@
+# v0.1
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.backends.legacy:build"
+
+[project]
+name = "pathminer"
+version = "0.14.0.dev0"
+description = "PCB power-path and resistance analysis — installable package skeleton"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "Proprietary" }
+authors = [{ name = "PathMiner contributors" }]
+keywords = ["PCB", "KiCad", "resistance", "power-path"]
+classifiers = [
+    "Development Status :: 2 - Pre-Alpha",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Electronic Design Automation (EDA)",
+]
+
+# Core package has no mandatory runtime dependencies.
+# GUI extras pull in PySide6; KiCad's own pcbnew is system-provided and not listed.
+dependencies = []
+
+[project.optional-dependencies]
+gui = ["PySide6>=6.4"]
+dev = ["pytest>=7"]
+
+[project.scripts]
+pathminer = "pathminer.cli:main"
+
+# ---------------------------------------------------------------------------
+# Setuptools package discovery
+# ---------------------------------------------------------------------------
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["pathminer*"]
+
+# ---------------------------------------------------------------------------
+# pytest
+# ---------------------------------------------------------------------------
+[tool.pytest.ini_options]
+# Add workspace root to sys.path so `import pathminer` works without installing.
+pythonpath = ["."]
+testpaths = ["tests"]
+# Exclude the baseline/ tree: it contains standalone scripts, not pytest tests.
+norecursedirs = ["tests/baseline", ".venv", "__pycache__", ".git"]
+addopts = "-q"
