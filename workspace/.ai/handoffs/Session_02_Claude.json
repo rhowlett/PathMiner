@@ -6,7 +6,7 @@
   "effort": "high",
   "status": "READY_FOR_REVIEW",
   "base_commit": "a8c49c95249d7c9d6f295b480deae801587af369",
-  "final_commit": "96b4a50eab1c2c65dd3ca39242f121457e7f9779",
+  "final_commit": "3b87edc4b03cbd8351d04c79cdc17bb2d0d2a291",
   "branch": "ai/session-02-claude-package-skeleton",
   "patch_checksum": null,
   "punch_items": [
@@ -14,33 +14,35 @@
       "id": "ARCH-001",
       "role": "package-skeleton slice (full closure in Session 08)",
       "status": "implemented",
-      "evidence": "pathminer/ package with 9 sub-package __init__.py stubs created; pyproject.toml enables `pip install -e .`; smoke-import test verifies all 10 modules import cleanly. Done-when clause requires application to run from package — deferred to Session 08 per SESSION_STATUS.csv."
+      "evidence": "pathminer/ package with 9 sub-package __init__.py stubs created; pyproject.toml (setuptools.build_meta, >=3.10) enables pip install -e .; editable install verified: 'python -I -c import pathminer; assert pathminer.__version__ == 0.14.0.dev0' passes; pip check clean; non-editable wheel built and installed in fresh venv. Smoke-import test verifies all 10 modules import cleanly. Done-when clause requires application to run from package -- deferred to Session 08 per SESSION_STATUS.csv."
     },
     {
       "id": "ARCH-002",
       "role": "closure owner",
       "status": "verified",
-      "evidence": "tests/test_import_boundaries.py: 37 tests, all PASS (0.02 s). Covers: core forbidden external (Qt/wx/KiCad/I-O), core forbidden internal (kicad/ui/storage/plugin/report/cli), kicad no-Qt/no-wx, headless layers (models/analysis/report/storage/cli) no-Qt/no-wx, plugin no-Qt, universal no-ui (8 sub-packages + root __init__), smoke imports (10 modules), self-check (3 tests confirm guard detects violations). Done-when clause: 'an automated import-boundary test fails on a forbidden dependency' — satisfied: guard catches synthetic Qt and pathminer.ui imports in self-check tests."
+      "evidence": "tests/test_import_boundaries.py: 48 tests, all PASS (0.08 s). Covers: core forbidden external (Qt/wx/KiCad/I-O), core forbidden internal (kicad/ui/storage/plugin/report/cli), kicad no-Qt/no-wx, headless layers (models/analysis/report/storage/cli) no-Qt/no-wx, plugin no-Qt, universal no-ui (8 sub-packages + root __init__), smoke imports (10 modules). Self-checks (13 tests) exercise actual enforcement path against tmp_path package files: 5 collection-correctness tests covering all 5 import forms (import X.ui, from X.ui import y, from X import ui, from .. import ui, from ..ui import y); 1 control (sibling dot-import not flagged as ui); 4 _find_violations tests; 3 _check_no_forbidden tests that assert pytest.fail.Exception is raised. Done-when clause: an automated import-boundary test fails on a forbidden dependency -- satisfied."
     }
   ],
   "files": {
     "added": [
-      "pyproject.toml",
-      "pathminer/__init__.py",
-      "pathminer/core/__init__.py",
-      "pathminer/kicad/__init__.py",
-      "pathminer/models/__init__.py",
-      "pathminer/analysis/__init__.py",
-      "pathminer/report/__init__.py",
-      "pathminer/storage/__init__.py",
-      "pathminer/cli/__init__.py",
-      "pathminer/ui/__init__.py",
-      "pathminer/plugin/__init__.py",
-      "tests/test_import_boundaries.py",
-      ".github/workflows/ci.yml"
+      ".github/workflows/ci.yml",
+      "workspace/pyproject.toml",
+      "workspace/pathminer/__init__.py",
+      "workspace/pathminer/core/__init__.py",
+      "workspace/pathminer/kicad/__init__.py",
+      "workspace/pathminer/models/__init__.py",
+      "workspace/pathminer/analysis/__init__.py",
+      "workspace/pathminer/report/__init__.py",
+      "workspace/pathminer/storage/__init__.py",
+      "workspace/pathminer/cli/__init__.py",
+      "workspace/pathminer/ui/__init__.py",
+      "workspace/pathminer/plugin/__init__.py",
+      "workspace/tests/test_import_boundaries.py"
     ],
     "modified": [],
-    "removed": []
+    "removed": [
+      "workspace/.github/workflows/ci.yml"
+    ]
   },
   "apis_changed": [
     "New: pathminer.__version__ = '0.14.0.dev0'",
@@ -61,47 +63,90 @@
     {
       "command": "python3 -m pytest -q",
       "exit_code": 0,
-      "result": "no tests ran in 0.02s (pre-change — no pytest files existed yet)",
+      "result": "no tests ran in 0.02s (pre-change -- no pytest files existed yet)",
       "runtime_seconds": 0.02
+    },
+    {
+      "command": "python -m pip install -e '.[gui,dev]'",
+      "exit_code": 0,
+      "result": "Successfully installed pathminer-0.14.0.dev0",
+      "runtime_seconds": null
+    },
+    {
+      "command": "python -I -c \"import pathminer; assert pathminer.__version__ == '0.14.0.dev0'\"",
+      "exit_code": 0,
+      "result": "version OK: 0.14.0.dev0",
+      "runtime_seconds": null
+    },
+    {
+      "command": "python -m pip check",
+      "exit_code": 0,
+      "result": "No broken requirements found.",
+      "runtime_seconds": null
+    },
+    {
+      "command": "python -m build --wheel --outdir <scratchpad>/pathminer_wheel_build .",
+      "exit_code": 0,
+      "result": "Successfully built pathminer-0.14.0.dev0-py3-none-any.whl",
+      "runtime_seconds": null
+    },
+    {
+      "command": "(fresh venv) pip install pathminer-0.14.0.dev0-py3-none-any.whl && python -I -c \"import pathminer; assert ...\"",
+      "exit_code": 0,
+      "result": "non-editable wheel install OK: 0.14.0.dev0; pip check clean",
+      "runtime_seconds": null
     },
     {
       "command": "python3 -m pytest -q",
       "exit_code": 0,
-      "result": "37 passed in 0.02s (post-change)",
-      "runtime_seconds": 0.02
+      "result": "48 passed in 0.08s (post-repair)",
+      "runtime_seconds": 0.08
     },
     {
       "command": "python3 tools/pcb_trace_resistance.py --selftest",
       "exit_code": 0,
-      "result": "118/118 checks passed (post-change, verifying no regression)",
+      "result": "118/118 checks passed (post-repair)",
       "runtime_seconds": 0.22
+    },
+    {
+      "command": "python3 tests/baseline/regression_compare.py all",
+      "exit_code": 0,
+      "result": "headless 118/118 PASS; powerbank 284/284 PASS; report 1 net/11 pairs PASS (tol=1e-06)",
+      "runtime_seconds": null
+    },
+    {
+      "command": "git diff --check HEAD",
+      "exit_code": 0,
+      "result": "No trailing whitespace",
+      "runtime_seconds": null
     }
   ],
   "decisions": [
-    "Static AST analysis chosen for import guard (not runtime importlib): catches violations without executing code, works on empty stubs, no import side-effects.",
-    "Version 0.14.0.dev0: pre-release signal; final versioning to be confirmed by coordinator before Resistance v1 milestone.",
-    "json and other I/O libraries (csv, sqlite3, configparser, yaml, toml, pickle, shelve, dbm) forbidden in pathminer.core — serialisation belongs in storage/ and report/.",
-    "wx allowed in pathminer.plugin (KiCad runtime provides it) but Qt forbidden in plugin/.",
+    "Static AST analysis for import guard; relative imports resolved to canonical absolute dotted names via _package_of_file + _resolve_relative. Handles all five forbidden-import forms.",
+    "Version 0.14.0.dev0: pre-release signal; final versioning confirmed by coordinator before Resistance v1.",
+    "json and other I/O libraries (csv, sqlite3, configparser, yaml, toml, pickle, shelve, dbm) forbidden in pathminer.core; serialisation in storage/ and report/.",
+    "wx allowed in pathminer.plugin (KiCad runtime provides it) but Qt forbidden.",
     "CI lint step is non-blocking (continue-on-error: true) until QA-009 release gate.",
-    "documents/change_log.md not updated — outside owned write scope; coordinator to add entry on integration."
+    "Full canonical regression added to 3.12/ubuntu-latest only to avoid duplicating slow board-level tests across the whole matrix.",
+    "documents/change_log.md not updated -- outside owned write scope; coordinator to add entry on integration."
   ],
   "assumptions": [
     "pathminer PyPI name is not claimed; coordinator to confirm before public release.",
-    "pip install -e '.[dev]' resolves correctly in CI on Python 3.9+, setuptools>=68.",
-    "PySide6 excluded from CI install; GUI tests deferred to UI sessions."
+    "python -m pip install -e '.[gui,dev]' installs correctly on Python 3.10+, setuptools>=68.",
+    "GitHub Actions Ubuntu runners are headless; PySide6 import succeeds in --selftest mode without a display because the application is not started."
   ],
   "deviations": [],
   "known_issues": [
-    "__pycache__/ directories not excluded by root .gitignore; coordinator should add **/__pycache__/ to root .gitignore during integration.",
+    "__pycache__, build/, and pathminer.egg-info/ not excluded by root .gitignore; coordinator should add patterns during integration.",
     "ARCH-001 not fully closed: Done-when requires application to run from package, deferred to Session 08.",
     "pathminer.cli:main() stub exits with code 1; real CLI implemented in later session.",
     "documents/change_log.md not updated (outside owned scope)."
   ],
   "dependent_session_impact": [
-    "Sessions 03-08 (code extraction, W2-A through W5): start from this commit; import-boundary test will catch violations during extraction.",
-    "Session 08 (compatibility integration, W5): closes ARCH-001 by making application run from package; must pass all 37 boundary tests.",
-    "All subsequent sessions: python3 -m pytest -q is now a valid pre-change baseline command (< 1 s).",
-    "CI workflow active from first push of this branch; sessions pushing ai/session-* branches automatically get pytest + selftest coverage."
+    "Sessions 03-08 (code extraction, W2-A through W5): start from this commit; import-boundary tests (48 total) will catch violations during extraction.",
+    "Session 08 (compatibility integration, W5): closes ARCH-001; must pass all 48 boundary tests.",
+    "All subsequent sessions: python3 -m pytest -q is a valid pre-change baseline command (48 tests, < 0.1 s).",
+    "CI: active from first push; Python 3.10/3.11/3.12 on ubuntu + 3.12 on macOS; 3.12/ubuntu includes full regression."
   ],
-  "recommended_next_action": "Coordinator: integrate branch into main; add **/__pycache__/ to root .gitignore and a documents/change_log.md entry during integration; open Sessions 03, 04, and 05 (W2-A, W2-B, W2-C — parallel, disjoint write scopes) from the integrated commit."
+  "recommended_next_action": "Coordinator: integrate branch into main; add __pycache__/build/egg-info patterns to root .gitignore and a documents/change_log.md entry during integration; open Sessions 03, 04, and 05 (W2-A, W2-B, W2-C -- parallel, disjoint write scopes) from the integrated commit."
 }
