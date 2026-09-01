@@ -1,0 +1,94 @@
+# v0.1
+# PathMiner CI
+#
+# Location: .github/workflows/ci.yml (worktree root, one level above workspace/)
+# All application code lives in workspace/ relative to this file's directory.
+#
+# Every push and pull request to main and any ai/session-* branch runs:
+#   1. python -m pip install -e ".[gui,dev]"  -- editable install with PySide6.
+#      PySide6 must be present because tools/pcb_trace_resistance.py (v0.13)
+#      imports PySide6 at module level even in --selftest mode.
+#   2. python -m pytest -q  -- ARCH-002 import-boundary tests (all layers).
+#   3. python tools/pcb_trace_resistance.py --selftest
+#      118/118 headless acceptance vectors (no board file required).
+#   4. On the Python 3.12 / ubuntu-latest configuration only:
+#      python tests/baseline/regression_compare.py all
+#      Full canonical regression: 118/118 headless, 284/284 IP5385 board,
+#      and 1 net/11 pairs IP5385 batch report.
+#      The IP5385 KiCad project files are committed under
+#      workspace/ai_reference/kicad_project_example/ so no download is needed.
+#
+# Lint is advisory (continue-on-error: true) until QA-009 release gate.
+
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - "ai/session-*"
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  test:
+    name: "Python ${{ matrix.python-version }} / ${{ matrix.os }}"
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+        python-version: ["3.10", "3.11", "3.12"]
+        include:
+          # macOS on the primary version only (mirrors developer machines)
+          - os: macos-latest
+            python-version: "3.12"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install pathminer package (editable, with GUI and dev extras)
+        working-directory: workspace
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[gui,dev]"
+
+      - name: Run pytest (ARCH-002 import-boundary guard + unit tests)
+        working-directory: workspace
+        run: python -m pytest -q
+
+      - name: Run v0.13 headless selftest (118/118 acceptance vectors)
+        working-directory: workspace
+        run: python tools/pcb_trace_resistance.py --selftest
+
+      - name: Run full canonical regression (3.12 ubuntu only)
+        if: matrix.python-version == '3.12' && matrix.os == 'ubuntu-latest'
+        working-directory: workspace
+        run: |
+          python tests/baseline/regression_compare.py all
+
+  # ---------------------------------------------------------------------------
+  # Lint / static checks (non-blocking; promoted to required at QA-009)
+  # ---------------------------------------------------------------------------
+  lint:
+    name: "Lint (non-blocking)"
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install lint tools
+        run: pip install ruff
+      - name: ruff check workspace/pathminer workspace/tests
+        working-directory: workspace
+        run: ruff check pathminer tests --select E,W,F --ignore E501 || true

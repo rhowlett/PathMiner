@@ -1,58 +1,59 @@
-# v0.1
+# v0.2
 """ARCH-002: automated import-boundary guard for the pathminer package.
 
-Rules enforced (from documents/library_refactor_recommendations.md §2 R1
+Rules enforced (from documents/library_refactor_recommendations.md S2 R1
 and .ai/planning/PathMiner_Implementation_Punch_List.md ARCH-002):
 
-    core/     — pure physics and maths.
+    core/     - pure physics and maths.
                 Must NOT import: KiCad packages, Qt packages, wx, or file
                 I/O libraries; must NOT import pathminer.kicad, pathminer.ui,
                 pathminer.storage, pathminer.plugin, or pathminer.report.
 
-    kicad/    — file formats and live-board adapter.
+    kicad/    - file formats and live-board adapter.
                 Must NOT import: Qt packages or wx.
                 Must NOT import: pathminer.ui.
 
-    models/   — geometry-to-network builders.
+    models/   - geometry-to-network builders.
                 Must NOT import: Qt packages or wx.
                 Must NOT import: pathminer.ui.
 
-    analysis/ — orchestration layer.
+    analysis/ - orchestration layer.
                 Must NOT import: Qt packages or wx.
                 Must NOT import: pathminer.ui.
 
-    report/   — serialisation and rendering.
+    report/   - serialisation and rendering.
                 Must NOT import: Qt packages or wx.
                 Must NOT import: pathminer.ui.
 
-    storage/  — project files and atomic writes.
+    storage/  - project files and atomic writes.
                 Must NOT import: Qt packages or wx.
                 Must NOT import: pathminer.ui.
 
-    cli/      — command-line entry points.
+    cli/      - command-line entry points.
                 Must NOT import: Qt packages or wx.
                 Must NOT import: pathminer.ui.
 
-    plugin/   — KiCad plugin shim (may import wx via pcbnew; must NOT import Qt).
+    plugin/   - KiCad plugin shim (may import wx via pcbnew; must NOT import Qt).
                 Must NOT import: Qt packages.
                 Must NOT import: pathminer.ui.
 
-    UNIVERSAL — Nothing (except pathminer.ui itself) may import pathminer.ui.
+    UNIVERSAL - Nothing (except pathminer.ui itself) may import pathminer.ui.
 
 Detection method: static AST walk over every .py file in the relevant tree.
+Absolute and relative imports are both resolved to canonical dotted names.
 The test is green today because the stub __init__.py files are empty or
 contain only docstrings and comments.  It turns red the moment a forbidden
-dependency is introduced — which is the intended safety guard.
+dependency is introduced -- which is the intended safety guard.
 
 Done-when clause (ARCH-002): "an automated import-boundary test fails on a
-forbidden dependency."  This test satisfies that clause once code is present;
-the self-check section below demonstrates the failure path.
+forbidden dependency."  The self-check section below exercises the actual
+boundary-enforcement path against temporary package files and asserts that
+the guard raises pytest.fail.Exception on violations.
 """
 
 from __future__ import annotations
 
 import ast
-import textwrap
 from pathlib import Path
 from typing import Sequence
 
@@ -65,18 +66,94 @@ import pytest
 WORKSPACE = Path(__file__).parent.parent
 PATHMINER = WORKSPACE / "pathminer"
 
+
 # ---------------------------------------------------------------------------
-# AST import collector
+# Package-context helper
 # ---------------------------------------------------------------------------
 
+def _package_of_file(py_file: Path, pathminer_root: Path) -> str:
+    """Return the dotted package name that *contains* py_file.
 
-def _collect_imports(py_file: Path) -> list[str]:
-    """Return every imported module name (full dotted form) found in *py_file*.
+    For pathminer/core/__init__.py  -> "pathminer.core"
+    For pathminer/core/utils.py     -> "pathminer.core"
 
-    Both ``import foo.bar`` and ``from foo.bar import baz`` are captured.
-    The result includes both the top-level name and the full dotted form so
-    callers can match against either ``"json"`` or ``"json.decoder"``.
+    The containing package is always the directory holding the file,
+    expressed relative to pathminer_root.parent (the workspace root).
     """
+    pkg_dir = py_file.parent
+    rel = pkg_dir.relative_to(pathminer_root.parent)
+    return ".".join(rel.parts)
+
+
+# ---------------------------------------------------------------------------
+# Relative-import resolver
+# ---------------------------------------------------------------------------
+
+def _resolve_relative(
+    level: int,
+    module: str | None,
+    imported_names: list[str],
+    py_file: Path,
+    pathminer_root: Path,
+) -> list[str]:
+    """Resolve a relative ImportFrom node to canonical absolute dotted names.
+
+    Python semantics:
+        level=1 (.)   means: current package (directory of py_file)
+        level=2 (..)  means: parent package (one level up)
+        level=N       means: N-1 levels up from current package
+
+    For pathminer/core/utils.py (package = pathminer.core):
+        from . import x      -> pathminer.core.x
+        from .. import ui    -> pathminer.ui
+        from ..ui import app -> pathminer.ui
+
+    The result list contains all resolved absolute dotted names.
+    """
+    pkg = _package_of_file(py_file, pathminer_root)
+    pkg_parts = pkg.split(".") if pkg else []
+    # Go up (level-1) package levels from the containing package.
+    go_up = level - 1
+    if go_up >= len(pkg_parts):
+        # Relative import escapes the top-level package -- malformed code.
+        # Return an empty list; a SyntaxError or ImportError will catch this at runtime.
+        return []
+    base_parts = pkg_parts[: len(pkg_parts) - go_up] if go_up > 0 else pkg_parts
+    base = ".".join(base_parts)
+
+    results: list[str] = []
+    if module:
+        # from ..module import name  ->  base.module
+        abs_mod = f"{base}.{module}" if base else module
+        results.append(abs_mod)
+    else:
+        # from .. import name1, name2  ->  base.name1, base.name2
+        for name in imported_names:
+            abs_name = f"{base}.{name}" if base else name
+            results.append(abs_name)
+    return results
+
+
+# ---------------------------------------------------------------------------
+# AST import collector (absolute and relative)
+# ---------------------------------------------------------------------------
+
+def _collect_imports(py_file: Path, pathminer_root: Path | None = None) -> list[str]:
+    """Return canonical absolute module names for every import in *py_file*.
+
+    Handles all five forms that a caller might use to reach a forbidden module::
+
+        import pathminer.ui                   -> ["pathminer", "pathminer.ui"]
+        from pathminer.ui import app          -> ["pathminer", "pathminer.ui",
+                                                  "pathminer.ui.app"]
+        from pathminer import ui              -> ["pathminer", "pathminer.ui"]
+        from .. import ui   (in core/)        -> ["pathminer.ui", "pathminer"]
+        from ..ui import app (in core/)       -> ["pathminer.ui", "pathminer"]
+
+    The result contains both full dotted forms and top-level names so that
+    callers can match against either ``"pathminer.ui"`` or ``"PySide6"``.
+    """
+    root = pathminer_root if pathminer_root is not None else PATHMINER
     src = py_file.read_text(encoding="utf-8")
     try:
         tree = ast.parse(src, filename=str(py_file))
@@ -84,65 +161,111 @@ def _collect_imports(py_file: Path) -> list[str]:
         pytest.fail(f"SyntaxError in {py_file}: {exc}")
 
     names: list[str] = []
+
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
+            # import foo.bar  ->  ["foo", "foo.bar"]
             for alias in node.names:
                 top = alias.name.split(".")[0]
                 names.append(top)
                 if "." in alias.name:
                     names.append(alias.name)
+
         elif isinstance(node, ast.ImportFrom):
-            if node.module:
+            if node.level and node.level > 0:
+                # Relative import: resolve to absolute dotted names.
+                imported_names = [alias.name for alias in node.names]
+                abs_names = _resolve_relative(
+                    node.level, node.module, imported_names, py_file, root
+                )
+                for abs_name in abs_names:
+                    names.append(abs_name)
+                    top = abs_name.split(".")[0]
+                    if top not in names:
+                        names.append(top)
+
+            elif node.module:
+                # Absolute import: from module import name1, name2
                 top = node.module.split(".")[0]
                 names.append(top)
-                if "." in node.module:
-                    names.append(node.module)
+                names.append(node.module)
+                # Also record module.name so "from pathminer import ui"
+                # produces "pathminer.ui" (not just "pathminer").
+                for alias in node.names:
+                    full = f"{node.module}.{alias.name}"
+                    names.append(full)
+
     return names
 
 
-def _files_in(subpkg: str) -> list[Path]:
-    """All .py files under ``pathminer/<subpkg>/`` (recursive)."""
-    d = PATHMINER / subpkg
+# ---------------------------------------------------------------------------
+# Violation finder (pure; does not call pytest.fail)
+# ---------------------------------------------------------------------------
+
+def _find_violations(
+    files: list[Path],
+    forbidden: Sequence[str],
+    pathminer_root: Path,
+) -> list[str]:
+    """Return human-readable violation strings, one per forbidden import found.
+
+    Does NOT call pytest.fail -- callers decide how to report.
+    """
+    violations: list[str] = []
+    for py_file in files:
+        imports = _collect_imports(py_file, pathminer_root)
+        for imp in imports:
+            for forbidden_name in forbidden:
+                if imp == forbidden_name or imp.startswith(forbidden_name + "."):
+                    violations.append(
+                        f"  {py_file}: imports '{imp}'"
+                        f" (forbidden: '{forbidden_name}')"
+                    )
+    return violations
+
+
+# ---------------------------------------------------------------------------
+# File lister
+# ---------------------------------------------------------------------------
+
+def _files_in_root(pathminer_root: Path, subpkg: str) -> list[Path]:
+    """All .py files under pathminer_root/subpkg/ (recursive)."""
+    d = pathminer_root / subpkg
     if not d.exists():
         return []
     return sorted(d.rglob("*.py"))
 
 
+def _files_in(subpkg: str) -> list[Path]:
+    """All .py files under PATHMINER/subpkg/ using the live package tree."""
+    return _files_in_root(PATHMINER, subpkg)
+
+
+# ---------------------------------------------------------------------------
+# Boundary check (calls pytest.fail on violation)
+# ---------------------------------------------------------------------------
+
 def _check_no_forbidden(
     subpkg: str,
     forbidden: Sequence[str],
     *,
-    exclude_self: bool = False,
+    pathminer_root: Path | None = None,
 ) -> None:
     """Assert no file in *subpkg* imports any name from *forbidden*.
 
     Parameters
     ----------
     subpkg:
-        Sub-package directory name relative to ``pathminer/``.
+        Sub-package directory name relative to ``pathminer_root``.
     forbidden:
         Sequence of module-name prefixes that must not appear.
-    exclude_self:
-        When True, the sub-package's own files are excluded from the check
-        (used so that ``ui/`` itself can import its own modules without
-        tripping the universal ``pathminer.ui`` rule).
+    pathminer_root:
+        Root of the pathminer package directory.  Defaults to PATHMINER
+        (the live workspace tree).  Pass a temporary directory in tests.
     """
-    files = _files_in(subpkg)
-    if exclude_self:
-        own_prefix = f"pathminer.{subpkg}"
-        files = [f for f in files if not str(f).endswith(f"pathminer/{subpkg}")]
-
-    violations: list[str] = []
-    for py_file in files:
-        imports = _collect_imports(py_file)
-        for imp in imports:
-            for forbidden_name in forbidden:
-                # Match exact name or sub-module: "json" matches "json" and "json.decoder"
-                if imp == forbidden_name or imp.startswith(forbidden_name + "."):
-                    violations.append(
-                        f"  {py_file.relative_to(WORKSPACE)}: imports '{imp}' "
-                        f"(forbidden: '{forbidden_name}')"
-                    )
+    root = pathminer_root if pathminer_root is not None else PATHMINER
+    files = _files_in_root(root, subpkg)
+    violations = _find_violations(files, forbidden, root)
     if violations:
         bullet_list = "\n".join(violations)
         pytest.fail(
@@ -166,14 +289,14 @@ _KICAD_PACKAGES = frozenset({
     "pcbnew", "kiutils", "sexprdata",
 })
 
-# File I/O libraries that pure-physics core must not use
+# File I/O libraries that pure-physics core must not use.
 _IO_LIBRARIES = frozenset({
     "json", "csv", "sqlite3", "configparser", "tomllib", "tomli",
     "yaml", "toml", "pickle", "shelve", "dbm",
 })
 
 # ---------------------------------------------------------------------------
-# ARCH-002 Rule A: pathminer.core — pure physics, no external I/O / UI / KiCad
+# ARCH-002 Rule A: pathminer.core -- pure physics, no external I/O / UI / KiCad
 # ---------------------------------------------------------------------------
 
 _CORE_FORBIDDEN_EXTERNAL = _QT_PACKAGES | _WX_PACKAGES | _KICAD_PACKAGES | _IO_LIBRARIES
@@ -201,7 +324,7 @@ def test_core_no_upward_internal_imports() -> None:
 
 
 # ---------------------------------------------------------------------------
-# ARCH-002 Rule B: pathminer.kicad — no Qt, no wx
+# ARCH-002 Rule B: pathminer.kicad -- no Qt, no wx
 # ---------------------------------------------------------------------------
 
 
@@ -216,7 +339,7 @@ def test_kicad_no_wx_imports() -> None:
 
 
 # ---------------------------------------------------------------------------
-# ARCH-002 Rule C: models, analysis, report, storage, cli — no Qt, no wx
+# ARCH-002 Rule C: models, analysis, report, storage, cli -- no Qt, no wx
 # ---------------------------------------------------------------------------
 
 
@@ -233,7 +356,7 @@ def test_headless_layers_no_wx(subpkg: str) -> None:
 
 
 # ---------------------------------------------------------------------------
-# ARCH-002 Rule D: plugin — no Qt (wx/pcbnew is allowed via KiCad runtime)
+# ARCH-002 Rule D: plugin -- no Qt (wx/pcbnew is allowed via KiCad runtime)
 # ---------------------------------------------------------------------------
 
 
@@ -300,52 +423,152 @@ def test_subpackage_is_importable(module_name: str) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Self-check: verify the guard actually catches violations
+# Self-checks: boundary-enforcement exercised against temporary package files
+#
+# Each test creates a minimal pathminer/core/ tree in a tmp_path directory,
+# calls the real import collector or guard function, and asserts the expected
+# outcome.  These tests prove the failure path works -- not just that string
+# helpers return the right strings.
 # ---------------------------------------------------------------------------
 
 
-def _imports_from_ast(source: str) -> list[str]:
-    """Helper used only in the self-check tests."""
-    tree = ast.parse(textwrap.dedent(source))
-    names: list[str] = []
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Import):
-            for alias in node.names:
-                names.append(alias.name)
-        elif isinstance(node, ast.ImportFrom):
-            if node.module:
-                names.append(node.module)
-    return names
+def _make_stub(tmp_path: Path, rel_path: str, source: str) -> Path:
+    """Write *source* to tmp_path/rel_path, creating parent dirs."""
+    f = tmp_path / rel_path
+    f.parent.mkdir(parents=True, exist_ok=True)
+    f.write_text(source)
+    return f
 
 
-def test_selfcheck_guard_detects_forbidden_import() -> None:
-    """Confirm that _collect_imports catches a Qt import in synthetic source."""
-    # Synthesise a source fragment that would be forbidden in core/
-    src = "import PySide6\nfrom PySide6.QtWidgets import QApplication\n"
-    imports = _imports_from_ast(src)
-    # The guard should find "PySide6" in the forbidden set
-    qt_found = [i for i in imports if i in _QT_PACKAGES or i.startswith("PySide6")]
-    assert qt_found, "Self-check failed: guard did not detect synthesised Qt import"
+# --- Import-collection correctness ---
 
 
-def test_selfcheck_guard_detects_ui_import() -> None:
-    """Confirm that _collect_imports catches a pathminer.ui import in synthetic source."""
-    src = "from pathminer.ui import app\n"
-    imports = _imports_from_ast(src)
-    ui_found = [i for i in imports if i.startswith("pathminer.ui")]
-    assert ui_found, "Self-check failed: guard did not detect synthesised pathminer.ui import"
+def test_selfcheck_absolute_import_detected(tmp_path: Path) -> None:
+    """'import pathminer.ui' is collected as 'pathminer.ui'."""
+    f = _make_stub(tmp_path, "pathminer/core/__init__.py", "import pathminer.ui\n")
+    root = tmp_path / "pathminer"
+    imports = _collect_imports(f, root)
+    assert "pathminer.ui" in imports, f"Got: {imports}"
 
 
-def test_selfcheck_guard_allows_stdlib_in_non_core() -> None:
-    """json is allowed in non-core layers; verify the guard does not flag it there."""
-    src = "import json\n"
-    imports = _imports_from_ast(src)
-    # json is only forbidden in core — this self-check confirms report/storage/etc. can use it.
-    # The test passes trivially if the guard for non-core layers excludes json.
-    json_found = [i for i in imports if i == "json"]
-    assert json_found == ["json"], "Self-check: expected to find 'json' in import list"
-    # Confirm json is in _IO_LIBRARIES (forbidden only for core):
-    assert "json" in _IO_LIBRARIES
-    # Confirm json is NOT in _QT_PACKAGES or _WX_PACKAGES (never forbidden for other layers):
-    assert "json" not in _QT_PACKAGES
-    assert "json" not in _WX_PACKAGES
+def test_selfcheck_from_module_import_name_detected(tmp_path: Path) -> None:
+    """'from pathminer.ui import app' is collected as 'pathminer.ui'."""
+    f = _make_stub(tmp_path, "pathminer/core/__init__.py",
+                   "from pathminer.ui import app\n")
+    root = tmp_path / "pathminer"
+    imports = _collect_imports(f, root)
+    assert "pathminer.ui" in imports, f"Got: {imports}"
+
+
+def test_selfcheck_from_pkg_import_subpkg_detected(tmp_path: Path) -> None:
+    """'from pathminer import ui' is collected as 'pathminer.ui'."""
+    f = _make_stub(tmp_path, "pathminer/core/__init__.py",
+                   "from pathminer import ui\n")
+    root = tmp_path / "pathminer"
+    imports = _collect_imports(f, root)
+    assert "pathminer.ui" in imports, f"Got: {imports}"
+
+
+def test_selfcheck_relative_dotdot_import_ui(tmp_path: Path) -> None:
+    """'from .. import ui' in pathminer/core/ resolves to 'pathminer.ui'."""
+    f = _make_stub(tmp_path, "pathminer/core/__init__.py", "from .. import ui\n")
+    root = tmp_path / "pathminer"
+    imports = _collect_imports(f, root)
+    assert "pathminer.ui" in imports, f"Got: {imports}"
+
+
+def test_selfcheck_relative_dotdot_from_ui_import_app(tmp_path: Path) -> None:
+    """'from ..ui import app' in pathminer/core/ resolves to 'pathminer.ui'."""
+    f = _make_stub(tmp_path, "pathminer/core/__init__.py",
+                   "from ..ui import app\n")
+    root = tmp_path / "pathminer"
+    imports = _collect_imports(f, root)
+    assert "pathminer.ui" in imports, f"Got: {imports}"
+
+
+def test_selfcheck_relative_dot_import_sibling_not_ui(tmp_path: Path) -> None:
+    """'from . import utils' in pathminer/core/ is NOT 'pathminer.ui'."""
+    f = _make_stub(tmp_path, "pathminer/core/__init__.py",
+                   "from . import utils\n")
+    root = tmp_path / "pathminer"
+    imports = _collect_imports(f, root)
+    ui_imports = [i for i in imports if "pathminer.ui" in i]
+    assert not ui_imports, (
+        f"Sibling import wrongly resolved to ui: {ui_imports}"
+    )
+
+
+# --- Violation detection (find_violations, no pytest.fail) ---
+
+
+def test_selfcheck_find_violations_non_empty_on_forbidden(tmp_path: Path) -> None:
+    """_find_violations returns entries when a forbidden import is present."""
+    f = _make_stub(tmp_path, "pathminer/core/__init__.py", "import PySide6\n")
+    root = tmp_path / "pathminer"
+    violations = _find_violations([f], ["PySide6"], root)
+    assert violations, "Expected violations but got none"
+
+
+def test_selfcheck_find_violations_empty_on_allowed(tmp_path: Path) -> None:
+    """_find_violations returns empty list when no forbidden imports present."""
+    f = _make_stub(tmp_path, "pathminer/core/__init__.py", "import math\n")
+    root = tmp_path / "pathminer"
+    violations = _find_violations([f], ["PySide6", "pathminer.ui"], root)
+    assert not violations, f"Unexpected violations: {violations}"
+
+
+def test_selfcheck_find_violations_json_in_core(tmp_path: Path) -> None:
+    """'import json' in core is flagged as an I/O violation."""
+    f = _make_stub(tmp_path, "pathminer/core/__init__.py", "import json\n")
+    root = tmp_path / "pathminer"
+    violations = _find_violations([f], ["json"], root)
+    assert violations, "Expected json violation but got none"
+
+
+def test_selfcheck_find_violations_json_allowed_in_storage(tmp_path: Path) -> None:
+    """'import json' in storage is NOT flagged by non-core rules (no json in forbidden)."""
+    f = _make_stub(tmp_path, "pathminer/storage/__init__.py", "import json\n")
+    root = tmp_path / "pathminer"
+    # Storage is only checked for Qt/wx/ui, not I/O libraries.
+    violations = _find_violations([f], sorted(_QT_PACKAGES | _WX_PACKAGES), root)
+    assert not violations, f"Unexpected violations: {violations}"
+
+
+# --- Actual guard path: assert _check_no_forbidden raises on violation ---
+
+
+def test_selfcheck_guard_raises_on_qt_import(tmp_path: Path) -> None:
+    """_check_no_forbidden raises pytest.fail.Exception on a Qt import in core."""
+    _make_stub(tmp_path, "pathminer/core/__init__.py", "import PySide6\n")
+    with pytest.raises(pytest.fail.Exception, match="forbidden import"):
+        _check_no_forbidden("core", ["PySide6"],
+                            pathminer_root=tmp_path / "pathminer")
+
+
+def test_selfcheck_guard_raises_on_relative_ui_import(tmp_path: Path) -> None:
+    """_check_no_forbidden raises when core uses 'from .. import ui'."""
+    _make_stub(tmp_path, "pathminer/core/__init__.py", "from .. import ui\n")
+    with pytest.raises(pytest.fail.Exception, match="forbidden import"):
+        _check_no_forbidden("core", ["pathminer.ui"],
+                            pathminer_root=tmp_path / "pathminer")
+
+
+def test_selfcheck_guard_raises_on_from_pkg_import_ui(tmp_path: Path) -> None:
+    """_check_no_forbidden raises when core uses 'from pathminer import ui'."""
+    _make_stub(tmp_path, "pathminer/core/__init__.py",
+               "from pathminer import ui\n")
+    with pytest.raises(pytest.fail.Exception, match="forbidden import"):
+        _check_no_forbidden("core", ["pathminer.ui"],
+                            pathminer_root=tmp_path / "pathminer")
+
+
+def test_selfcheck_guard_passes_on_clean_core(tmp_path: Path) -> None:
+    """_check_no_forbidden does NOT raise when core imports only allowed modules."""
+    _make_stub(tmp_path, "pathminer/core/__init__.py",
+               "import math\nimport dataclasses\n")
+    # Should not raise
+    _check_no_forbidden(
+        "core",
+        sorted(_CORE_FORBIDDEN_EXTERNAL | _CORE_FORBIDDEN_INTERNAL),
+        pathminer_root=tmp_path / "pathminer",
+    )
