@@ -1,0 +1,106 @@
+{
+  "session": 3,
+  "ai": "Claude",
+  "model": "Sonnet-5",
+  "speed": "not-applicable",
+  "effort": "high",
+  "status": "READY_FOR_REVIEW",
+  "base_commit": "a726662",
+  "final_commit": "a9939a5",
+  "branch": "ai/session-03-claude-electrical-core",
+  "patch_checksum": "a9939a59eb2f5145d78a6dc68d3f530c922d2ed8",
+  "punch_items": [
+    {
+      "id": "PWR-001",
+      "role": "closure owner",
+      "status": "open",
+      "evidence": "Trace and via barrel formulas (v0.13 vectors V2, V3, V4, V6, V7, V8, and the v0.2 regression trace/hot-resistance checks) ported unchanged into pathminer/core/resistance.py and reproduced bit-for-bit in tests/test_resistance.py (29 tests, all pass) against literal geometry fixtures equivalent to v0.13's reference stackup. The full Done-when clause ('all v0.13 acceptance vectors pass through the new APIs') needs core/geometry.py, kicad/stackup.py, kicad/board.py (BoardSource), and core/network.py, none of which are in this session's owned scope (Sessions 04-07), so the item is left open. See decisions[] for the logged contradiction with the session-catalog closure-owner assignment."
+    },
+    {
+      "id": "ARCH-010",
+      "role": "contributor",
+      "status": "implemented",
+      "evidence": "Module tests for the trace/via slice retain the original v0.13 acceptance-vector identities (V2-V8) in test IDs/docstrings, so this slice's module tests and any future aggregate selftest report the same vector identities."
+    },
+    {
+      "id": "QA-001",
+      "role": "contributor",
+      "status": "implemented",
+      "evidence": "Analytic unit tests added for trace resistance, via-barrel area/length, the resistance-temperature-coefficient relation, and both hole/length conventions -- the DC-resistance-equation slice of QA-001's scope."
+    }
+  ],
+  "files": {
+    "added": [
+      "pathminer/core/units.py",
+      "pathminer/core/materials.py",
+      "pathminer/core/resistance.py",
+      "tests/test_units.py",
+      "tests/test_materials.py",
+      "tests/test_resistance.py"
+    ],
+    "modified": [],
+    "removed": []
+  },
+  "apis_changed": [
+    "pathminer.core.units.MIL_TO_M (new)",
+    "pathminer.core.units.MM_TO_M (new)",
+    "pathminer.core.units.format_ohms(r) -> str (new)",
+    "pathminer.core.materials.RHO_CU_20C (new)",
+    "pathminer.core.materials.ALPHA_CU (new)",
+    "pathminer.core.materials.OZ_TO_UM (new)",
+    "pathminer.core.resistance.trace_resistance(length_m, width_m, thickness_m) -> float (new)",
+    "pathminer.core.resistance.resistance_at_temp(r20, temp_c) -> float (new)",
+    "pathminer.core.resistance.barrel_diameters(hole_m, plating_m, convention) -> tuple[float, float] (new)",
+    "pathminer.core.resistance.barrel_area(hole_m, plating_m, convention) -> float (new)",
+    "pathminer.core.resistance.barrel_length_mm(geo, name_a, name_b, mode) -> float (new)",
+    "pathminer.core.resistance.via_resistance(geo, a, b, hole_m, plating_m, convention='bit', mode='centre', count=1, sharing_pct=100.0) -> tuple[float, float, float] (new)"
+  ],
+  "schemas_changed": [],
+  "compatibility_consequences": [
+    "None. tools/pcb_trace_resistance.py was not modified and remains the current runtime behavioral source of truth; it still carries its own copies of these six functions. Wiring it to pathminer.core is a later compatibility-facade step (Session 08)."
+  ],
+  "tests": [
+    {
+      "command": "python3 -m pytest -q",
+      "exit_code": 0,
+      "result": "48 passed (pre-change baseline, recorded before any edit)",
+      "runtime_seconds": 0.08
+    },
+    {
+      "command": "python3 -m pytest -q tests/test_units.py tests/test_materials.py tests/test_resistance.py",
+      "exit_code": 0,
+      "result": "45 passed (12 units + 4 materials + 29 resistance)",
+      "runtime_seconds": 0.03
+    },
+    {
+      "command": "python3 -m pytest -q",
+      "exit_code": 0,
+      "result": "93 passed (post-change full suite: 48 baseline + 45 new; import-boundary tests still pass)",
+      "runtime_seconds": 0.1
+    }
+  ],
+  "decisions": [
+    "Module boundary: units.py = generic length conversions + format_ohms display helper; materials.py = copper material constants (resistivity, temperature coefficient, weight-to-thickness); resistance.py = trace/via equations consuming those constants. Matches the refactor plan's M1 extraction sequence and project specification S8.1/S8.3/S8.4.",
+    "IPC-2221 trace-temperature-rise (temperature_rise_c and its constants) and c_to_f/f_to_c/delta_c_to_f were intentionally NOT ported: project specification S8.16 assigns this to RET-007 (Session 31 closure), not this session, and resistance_at_temp (S8.1) does not need it.",
+    "via_resistance/barrel_length_mm accept a plain sequence of mapping objects ({'name','z_top_mm','finished_mm','z_ctr_mm'}) instead of a Stackup type, preserving v0.13's own decoupling and keeping core/resistance.py independent of the geometry/stackup extraction landing in Sessions 04/05. Documented in the module docstring as the expected contract.",
+    "Test geometry fixtures (GEO_ON/GEO_OFF) are literal dicts hand-derived from v0.13's reference stackup rather than produced by a ported Stackup class (out of scope); derivation is documented in the test module docstring.",
+    "LOGGED CONTRADICTION: SESSION_INDEX.md and the refactor plan's session-catalog table (S15.2) name this session PWR-001's sole closure owner, but this session's own prompt requires ALL v0.13 acceptance vectors to pass before closing PWR-001, most of which need modules outside this session's owned scope (Sessions 04-07). Per source-of-truth rank #1 (this session's own prompt) and its explicit 'do not mark complete unless the exact Done-when clause has been demonstrated' instruction, PWR-001 is left open rather than closed. Coordinator should decide whether to reword PWR-001's Done-when clause into session-scoped slices or defer full closure to a later integration session (likely 08)."
+  ],
+  "assumptions": [
+    "SESSION_STATUS.csv's recorded base_commit (6a09113) and the actual HEAD at session start (a726662) differ only by a metadata-only edit to SESSION_STATUS.csv itself (marking Session 02 INTEGRATED and assigning Session 03); no owned-scope file differs between the two, so a726662 was treated as the effective base.",
+    "The per-layer geometry dict shape used by via_resistance/barrel_length_mm (name, z_top_mm, finished_mm, z_ctr_mm) is assumed stable for Sessions 04/05 to reproduce via their own Stackup.geometry() implementation; this is documented but not enforced by a type/protocol in this session (no such contract type exists yet)."
+  ],
+  "deviations": [
+    "documents/change_log.md was not updated despite its own 'every change session gets an entry' policy, because it is not in this session's owned write scope. Session 02 (comparable new-file scope) likewise left it untouched. Recommend the coordinator or an integration session add the Session 03 entry."
+  ],
+  "known_issues": [
+    "PWR-001 is not fully closed; see punch_items and decisions above for exactly which v0.13 acceptance vectors remain unported and why (V1 stackup parsing; V9-V23 routed-net/path/nodal-analysis/zone-modelling vectors; all require geometry/stackup/BoardSource/network modules from Sessions 04-07)."
+  ],
+  "dependent_session_impact": [
+    "Sessions 04 (geometry/numerical backend) and 05 (KiCad stackup/preferences) should produce Stackup.geometry()-equivalent output matching the documented per-layer dict contract (name, z_top_mm, finished_mm, z_ctr_mm) so via_resistance/barrel_length_mm can be called unmodified.",
+    "Session 07 (common network/builders) can import trace_resistance and via_resistance directly for point-to-point/ladder/mesh edge pricing.",
+    "Session 08 (compatibility integration/single-file build) is the natural point to re-verify PWR-001's full acceptance-vector set once geometry/stackup/network modules exist, and to wire tools/pcb_trace_resistance.py (or its package replacement) to import from pathminer.core instead of duplicating these six functions.",
+    "No breaking API change is expected; all three new modules are additive and self-contained."
+  ],
+  "recommended_next_action": "Coordinator: review this diff and handoff, then integrate into the base for Sessions 04/05 (or route a read-only paired-model review first per the Session Execution Rules review option). Do not mark PWR-001 closed based on this session alone; re-evaluate once Sessions 04-07 land."
+}
