@@ -1,3 +1,4 @@
+<!-- v0.2 -->
 # Golden Fixtures — Test Infrastructure
 
 **Status:** All three canonical fixtures created and comparator verified PASS
@@ -115,10 +116,14 @@ The comparator (`regression_compare.py`) applies these rules in order:
 
 ### report pairs
 
-1. `generated` field: excluded (timestamp-dependent)
-2. `solve_seconds` per pair: excluded (timing-dependent)
-3. Resistance/voltage/power floats: compared with 1e-6 relative tolerance
-4. `notes` branch-location: first-branch location stripped; remaining
+1. Board and net-selection SHA-256 values: verified against fixture metadata
+   before comparing results
+2. `generated` field: excluded (timestamp-dependent)
+3. `solve_seconds` per pair: excluded (timing-dependent)
+4. Numeric result and nested-segment floats: compared with 1e-6 relative
+   tolerance; segment keys, order, labels, layers, integer counts, and other
+   non-floating values remain exact
+5. `notes` branch-location: first-branch location stripped; remaining
    structure `"branch (and N more): <message>"` compared exactly
 
 ## Running the Comparator

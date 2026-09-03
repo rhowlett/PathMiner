@@ -1,4 +1,4 @@
-<!-- v0.1 -->
+<!-- v0.2 -->
 # PathMiner — change log
 
 ## Versioning rules
@@ -49,3 +49,22 @@ entry point.
 inputs, alongside the template's `code_samples/` and `doc_samples/`. `core/`, `ui/*`, `tests/`
 and `schema/` are scaffolded but empty pending the split described in
 `documents/library_refactor_recommendations.md`; `.gitkeep` files hold them.
+
+---
+
+## 2026-09-03 — Cross-platform baseline-comparator correction
+
+| File | Version | Change |
+|---|---|---|
+| tests/baseline/regression_compare.py | v0.2 | Verify input hashes and compare nested segment floats using the existing report tolerance while preserving exact structure |
+| tests/baseline/golden_fixtures_notes.md | v0.2 | Document input-hash verification and nested floating-point comparison |
+| tests/baseline/README.md | v0.2 | Document the corrected cross-platform report comparison |
+| documents/change_log.md | v0.2 | Record the coordinator hotfix |
+
+**Why:** report segment dictionaries were compared with raw Python equality even though their
+calculated floating-point leaves can vary in the final few bits with summation order or platform
+math behavior. Top-level report values already used a `1e-6` relative tolerance. The comparator
+now applies that same tolerance recursively to segment floats while continuing to compare segment
+order, keys, layer names, kinds, flags, and integer counts exactly. It also verifies the live board
+and net-selection SHA-256 values before accepting a report, so a wrong or changed input cannot be
+hidden by the numerical tolerance. The golden fixtures themselves were not changed.

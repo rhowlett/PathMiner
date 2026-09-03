@@ -1,3 +1,4 @@
+<!-- v0.2 -->
 # PathMiner v0.13 Baseline Tests
 
 **Baseline Commit:** fe507fd01017cd0930739cbd8c4cc3f916b47e98
@@ -134,7 +135,9 @@ python3 tests/baseline/regression_compare.py report
 **Normalization applied:**
 - Selftest: absolute paths replaced with `<normalized_path>` (macOS home, macOS temp, Linux temp, Linux home)
 - V18 "reopen restores height": stored as `<platform_dependent>` sentinel; comparator verifies only status=PASS
-- Report: generated timestamp and solve_seconds excluded; resistance values kept; notes branch-location stripped (hash-map order volatile)
+- Report: input hashes verified; generated timestamp and solve_seconds excluded;
+  numeric result and nested-segment floats compared with 1e-6 relative tolerance;
+  segment structure remains exact; notes branch-location stripped (hash-map order volatile)
 
 ---
 

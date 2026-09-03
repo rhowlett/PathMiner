@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# v0.2
 """
 PathMiner v0.13 Baseline Regression Comparator
 Session 01 — QA-004 contribution
@@ -22,9 +23,12 @@ Normalization applied (must match golden_fixtures_notes.md rules):
                V18 "reopen restores height" pixel count → <platform_dependent> sentinel;
                runtime fields excluded
     report:    generated timestamp and solve_seconds excluded; resistance values kept;
-               branch-location in notes stripped (hash-map order volatile)
+               branch-location in notes stripped (hash-map order volatile);
+               nested segment floats compared with FLOAT_TOL while structure
+               and non-floating values remain exact
 """
 
+import hashlib
 import json
 import math
 import re
@@ -171,6 +175,65 @@ def floats_close(a, b, tol=FLOAT_TOL) -> bool:
     return abs(fa - fb) / denom <= tol
 
 
+def verify_source_hash(path: Path, expected: str, label: str) -> str | None:
+    """Return the live SHA-256 when it matches the fixture metadata."""
+    if not re.fullmatch(r"[0-9a-f]{64}", expected or ""):
+        print(f"FAIL  golden fixture has no valid {label} SHA-256: {expected!r}")
+        return None
+
+    digest = hashlib.sha256()
+    with path.open("rb") as source:
+        for chunk in iter(lambda: source.read(1024 * 1024), b""):
+            digest.update(chunk)
+    actual = digest.hexdigest()
+    if actual != expected:
+        print(f"FAIL  {label} SHA-256 does not match the golden fixture")
+        print(f"      Live:   {actual}  {path}")
+        print(f"      Golden: {expected}")
+        return None
+    return actual
+
+
+def diff_nested(live, gold, path: str) -> list[str]:
+    """Compare nested JSON values, tolerating only floating-point noise.
+
+    Dictionary keys, list ordering/length, strings, booleans, integers, and
+    null values remain exact.  A float on either side is compared with the
+    same relative tolerance used for the report's top-level result fields.
+    """
+    if isinstance(live, bool) or isinstance(gold, bool):
+        return [] if live == gold else [f"    {path}: live={live!r} golden={gold!r}"]
+
+    if isinstance(live, float) or isinstance(gold, float):
+        if isinstance(live, (int, float)) and isinstance(gold, (int, float)):
+            if floats_close(live, gold):
+                return []
+        return [
+            f"    {path}: live={live!r} golden={gold!r} "
+            f"(rel diff > {FLOAT_TOL})"
+        ]
+
+    if isinstance(live, dict) and isinstance(gold, dict):
+        diffs = []
+        if set(live) != set(gold):
+            return [
+                f"    {path} keys: live={sorted(live)!r} golden={sorted(gold)!r}"
+            ]
+        for key in sorted(live):
+            diffs.extend(diff_nested(live[key], gold[key], f"{path}.{key}"))
+        return diffs
+
+    if isinstance(live, list) and isinstance(gold, list):
+        if len(live) != len(gold):
+            return [f"    {path} length: live={len(live)} golden={len(gold)}"]
+        diffs = []
+        for index, (live_item, gold_item) in enumerate(zip(live, gold)):
+            diffs.extend(diff_nested(live_item, gold_item, f"{path}[{index}]"))
+        return diffs
+
+    return [] if live == gold else [f"    {path}: live={live!r} golden={gold!r}"]
+
+
 FLOAT_PAIR_KEYS = {
     "path_ohms", "network_ohms", "hot_ohms",
     "drop_v", "power_w", "parallel_gain_pct",
@@ -218,6 +281,8 @@ def diff_pair(live: dict, gold: dict) -> list[str]:
             gn_norm = normalize_notes(gv)
             if ln_norm != gn_norm:
                 diffs.append(f"    notes (normalized): live={ln_norm!r} golden={gn_norm!r}")
+        elif k == "segments":
+            diffs.extend(diff_nested(lv, gv, "segments"))
         else:
             if lv != gv:
                 diffs.append(f"    {k}: live={lv!r} golden={gv!r}")
@@ -242,6 +307,14 @@ def run_selftest_suite(name: str, suite: dict) -> int:
 
     golden_vectors = golden["selftest_vectors"]
     expected_total = suite["expected_total"]
+    meta = golden.get("_fixture_meta", {})
+    board_sha = None
+    if suite["board_required"]:
+        board_sha = verify_source_hash(
+            BOARD_PB, meta.get("source_board_sha256", ""), "board"
+        )
+        if board_sha is None:
+            return 1
 
     print(f"Command: {' '.join(suite['command'])}")
     print(f"Golden:  {fixture_path.name} ({len(golden_vectors)} vectors)")
@@ -297,9 +370,11 @@ def run_selftest_suite(name: str, suite: dict) -> int:
                 print(d)
         return 1
 
-    meta = golden.get("_fixture_meta", {})
     print(f"PASS  {passed_count}/{total_count} vectors match golden fixture exactly")
-    print(f"      Board SHA-256: {meta.get('source_board_sha256', 'N/A')} (baseline)")
+    print(
+        f"      Board SHA-256: "
+        f"{board_sha or meta.get('source_board_sha256', 'N/A')} (verified)"
+    )
     return 0
 
 
@@ -325,6 +400,15 @@ def run_report_suite(name: str, suite: dict) -> int:
     g_report = golden["report"]
     g_nets = g_report["nets"]
     expected_pairs = suite["expected_pairs"]
+    meta = golden.get("_fixture_meta", {})
+    board_sha = verify_source_hash(
+        BOARD_PB, meta.get("source_board_sha256", ""), "board"
+    )
+    netsel_sha = verify_source_hash(
+        NETSEL_PACK, meta.get("net_selection_sha256", ""), "net-selection"
+    )
+    if board_sha is None or netsel_sha is None:
+        return 1
 
     print(f"Command: {' '.join(str(x) for x in suite['command'])}")
     print(f"Golden:  {fixture_path.name} "
@@ -375,11 +459,10 @@ def run_report_suite(name: str, suite: dict) -> int:
         return 1
 
     total_pairs = sum(len(n["pairs"]) for n in live_nets)
-    meta = golden.get("_fixture_meta", {})
     print(f"PASS  {len(live_nets)} net(s), {total_pairs} pair(s) match golden fixture "
           f"(tol={FLOAT_TOL:.0e})")
-    print(f"      Board SHA-256:  {meta.get('source_board_sha256', 'N/A')} (baseline)")
-    print(f"      Netsel SHA-256: {meta.get('net_selection_sha256', 'N/A')} (baseline)")
+    print(f"      Board SHA-256:  {board_sha} (verified)")
+    print(f"      Netsel SHA-256: {netsel_sha} (verified)")
     return 0
 
 
