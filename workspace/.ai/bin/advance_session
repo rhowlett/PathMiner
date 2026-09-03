@@ -1,0 +1,810 @@
+#!/usr/bin/env python3
+"""Validate an integrated session, assign the next, and launch its worktree."""
+
+from __future__ import annotations
+
+import argparse
+import csv
+import json
+import os
+import re
+import shutil
+import stat
+import subprocess
+import sys
+import tempfile
+from datetime import date
+from pathlib import Path
+from typing import Any, Dict, Iterable, List, Sequence, Tuple
+
+# Coordinator checks must not create an untracked __pycache__ directory.
+sys.dont_write_bytecode = True
+
+from pathminer_ai_common import (  # noqa: E402
+    find_prompt,
+    find_workspace,
+    git_top,
+    git_value,
+    normalize_session,
+    prerequisite_numbers,
+    prompt_assignment,
+    python_environment,
+)
+
+
+class Checks:
+    def __init__(self) -> None:
+        self.failures = 0
+        self.warnings = 0
+
+    def passed(self, message: str) -> None:
+        print(f"PASS  {message}")
+
+    def warned(self, message: str) -> None:
+        self.warnings += 1
+        print(f"WARN  {message}")
+
+    def failed(self, message: str) -> None:
+        self.failures += 1
+        print(f"FAIL  {message}")
+
+
+def _git(top: Path, *args: str, timeout: int = 120) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        ["git", "-C", str(top), *args],
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        timeout=timeout,
+        check=False,
+    )
+
+
+def _tail(text: str, count: int = 12) -> str:
+    lines = [line for line in text.splitlines() if line.strip()]
+    return "\n".join(lines[-count:])
+
+
+def _expected_branch(prompt: Path, session: str) -> str:
+    text = prompt.read_text(encoding="utf-8")
+    match = re.search(
+        r"dedicated branch/worktree named\s+`(ai/session-[^`]+)`",
+        text,
+        flags=re.IGNORECASE,
+    )
+    if not match:
+        raise RuntimeError(
+            f"Session {session} prompt does not declare its branch/worktree name"
+        )
+    return match.group(1)
+
+
+def _owned_paths(prompt: Path, workspace: Path, session: str) -> List[str]:
+    text = prompt.read_text(encoding="utf-8")
+    match = re.search(
+        r"^## Owned write scope\s*$([\s\S]*?)(?=^## )",
+        text,
+        flags=re.MULTILINE,
+    )
+    if not match:
+        raise RuntimeError(f"Session {session} prompt has no Owned write scope section")
+
+    allowed: List[str] = []
+    for item in re.findall(
+        r"^-\s+`?([^`\n]+?)`?\s*$", match.group(1), flags=re.MULTILINE
+    ):
+        candidate = Path(item)
+        if candidate.is_absolute() or ".." in candidate.parts:
+            raise RuntimeError(f"Unsafe owned path in Session {session} prompt: {item}")
+        allowed.append((Path(workspace.name) / candidate).as_posix())
+
+    allowed.extend(
+        [
+            f"{workspace.name}/.ai/handoffs/Session_{session}_Claude.json",
+            f"{workspace.name}/.ai/handoffs/Session_{session}_Claude.md",
+        ]
+    )
+    return sorted(set(allowed))
+
+
+def _read_ledger(
+    path: Path,
+) -> Tuple[List[str], List[Dict[str, str]], str, bool]:
+    raw = path.read_bytes()
+    line_terminator = "\r\n" if b"\r\n" in raw else "\n"
+    has_final_newline = raw.endswith((b"\n", b"\r"))
+    with path.open("r", encoding="utf-8-sig", newline="") as handle:
+        reader = csv.DictReader(handle)
+        if reader.fieldnames is None:
+            raise RuntimeError(f"Ledger has no header: {path}")
+        return list(reader.fieldnames), list(reader), line_terminator, has_final_newline
+
+
+def _rows_by_session(rows: Iterable[Dict[str, str]]) -> Dict[int, Dict[str, str]]:
+    result: Dict[int, Dict[str, str]] = {}
+    for row in rows:
+        try:
+            number = int(row["session"])
+        except (KeyError, TypeError, ValueError) as exc:
+            raise RuntimeError(f"Ledger contains an invalid session row: {row!r}") from exc
+        if number in result:
+            raise RuntimeError(f"Ledger contains duplicate Session {number:02d} rows")
+        result[number] = row
+    return result
+
+
+def _integrated(row: Dict[str, str] | None) -> bool:
+    return bool(
+        row
+        and row.get("state") == "INTEGRATED"
+        and row.get("integration_status") == "INTEGRATED"
+    )
+
+
+def _ledger_prerequisites(value: str) -> List[int]:
+    return [int(item) for item in re.findall(r"\d+", value or "")]
+
+
+def _worktrees(top: Path) -> Dict[str, Path]:
+    result = _git(top, "worktree", "list", "--porcelain")
+    if result.returncode != 0:
+        detail = (result.stderr or result.stdout).strip()
+        raise RuntimeError(detail or "git worktree list failed")
+    mapping: Dict[str, Path] = {}
+    current_path: Path | None = None
+    for line in result.stdout.splitlines():
+        if line.startswith("worktree "):
+            current_path = Path(line.removeprefix("worktree ")).resolve()
+        elif line.startswith("branch refs/heads/") and current_path is not None:
+            mapping[line.removeprefix("branch refs/heads/")] = current_path
+    return mapping
+
+
+def _json_type_matches(value: Any, expected: str) -> bool:
+    if expected == "null":
+        return value is None
+    if expected == "object":
+        return isinstance(value, dict)
+    if expected == "array":
+        return isinstance(value, list)
+    if expected == "string":
+        return isinstance(value, str)
+    if expected == "integer":
+        return isinstance(value, int) and not isinstance(value, bool)
+    if expected == "number":
+        return isinstance(value, (int, float)) and not isinstance(value, bool)
+    if expected == "boolean":
+        return isinstance(value, bool)
+    return True
+
+
+def _validate_json_schema(value: Any, schema: Dict[str, Any], location: str = "$") -> List[str]:
+    """Validate the JSON-Schema features used by HANDOFF_SCHEMA.json."""
+    errors: List[str] = []
+    expected = schema.get("type")
+    if expected:
+        choices = expected if isinstance(expected, list) else [expected]
+        if not any(_json_type_matches(value, choice) for choice in choices):
+            errors.append(f"{location}: expected type {choices}, got {type(value).__name__}")
+            return errors
+    if "enum" in schema and value not in schema["enum"]:
+        errors.append(f"{location}: {value!r} is not one of {schema['enum']!r}")
+    if isinstance(value, str) and len(value) < schema.get("minLength", 0):
+        errors.append(f"{location}: string is shorter than minLength")
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        if "minimum" in schema and value < schema["minimum"]:
+            errors.append(f"{location}: {value} is less than minimum {schema['minimum']}")
+        if "maximum" in schema and value > schema["maximum"]:
+            errors.append(f"{location}: {value} is greater than maximum {schema['maximum']}")
+    if isinstance(value, dict):
+        for required in schema.get("required", []):
+            if required not in value:
+                errors.append(f"{location}: missing required property {required!r}")
+        for key, child in value.items():
+            child_schema = schema.get("properties", {}).get(key)
+            if child_schema:
+                errors.extend(_validate_json_schema(child, child_schema, f"{location}.{key}"))
+    if isinstance(value, list) and "items" in schema:
+        for index, item in enumerate(value):
+            errors.extend(_validate_json_schema(item, schema["items"], f"{location}[{index}]"))
+    return errors
+
+
+def _local_date() -> str:
+    today = date.today()
+    return f"{today.month}/{today.day}/{today.year % 100:02d}"
+
+
+def _atomic_write_ledger(
+    path: Path,
+    fieldnames: Sequence[str],
+    rows: Sequence[Dict[str, str]],
+    line_terminator: str,
+    has_final_newline: bool,
+) -> None:
+    original_mode = stat.S_IMODE(path.stat().st_mode)
+    temporary_name = ""
+    try:
+        with tempfile.NamedTemporaryFile(
+            "w",
+            encoding="utf-8",
+            newline="",
+            dir=path.parent,
+            prefix=f".{path.name}.",
+            suffix=".tmp",
+            delete=False,
+        ) as handle:
+            temporary_name = handle.name
+            writer = csv.DictWriter(
+                handle,
+                fieldnames=list(fieldnames),
+                lineterminator=line_terminator,
+                extrasaction="raise",
+            )
+            writer.writeheader()
+            writer.writerows(rows)
+            handle.flush()
+            os.fsync(handle.fileno())
+        if not has_final_newline:
+            with open(temporary_name, "rb+") as handle:
+                encoded_terminator = line_terminator.encode("utf-8")
+                handle.seek(-len(encoded_terminator), os.SEEK_END)
+                if handle.read() != encoded_terminator:
+                    raise RuntimeError("temporary ledger has an unexpected line ending")
+                handle.seek(-len(encoded_terminator), os.SEEK_END)
+                handle.truncate()
+        os.chmod(temporary_name, original_mode)
+        os.replace(temporary_name, path)
+    finally:
+        if temporary_name and os.path.exists(temporary_name):
+            os.unlink(temporary_name)
+
+
+def _display_changes(label: str, changes: Sequence[Tuple[str, str, str]]) -> None:
+    print(f"\n{label}")
+    if not changes:
+        print("  No ledger changes needed.")
+        return
+    for field, old, new in changes:
+        before = old if old else "<blank>"
+        after = new if new else "<blank>"
+        print(f"  {field:20} {before!r} -> {after!r}")
+
+
+def _confirm(prompt: str, expected: str = "y") -> bool:
+    if not sys.stdin.isatty():
+        print("FAIL  Interactive confirmation requires a terminal; use --yes", file=sys.stderr)
+        return False
+    reply = input(prompt).strip()
+    return reply.lower() in {"y", "yes"} if expected == "y" else reply == expected
+
+
+def _run_gate(
+    checks: Checks,
+    label: str,
+    command: Sequence[str],
+    cwd: Path,
+    environment: Dict[str, str],
+    timeout: int,
+) -> None:
+    print(f"RUN   {label}")
+    try:
+        result = subprocess.run(
+            list(command),
+            cwd=str(cwd),
+            env=environment,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=timeout,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        checks.failed(f"{label}: {exc}")
+        return
+    combined = "\n".join(part for part in (result.stdout, result.stderr) if part)
+    if result.returncode == 0:
+        summary = _tail(combined, 3)
+        checks.passed(label + (f":\n{summary}" if summary else ""))
+    else:
+        checks.failed(f"{label} exited {result.returncode}:\n{_tail(combined)}")
+
+
+def _find_python312() -> str | None:
+    configured = os.environ.get("PATHMINER_PYTHON312")
+    candidates = [configured, shutil.which("python3.12")]
+    brew = shutil.which("brew")
+    if brew:
+        result = subprocess.run(
+            [brew, "--prefix", "python@3.12"],
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=False,
+        )
+        if result.returncode == 0:
+            candidates.append(str(Path(result.stdout.strip()) / "bin" / "python3.12"))
+    for candidate in candidates:
+        if candidate and Path(candidate).is_file() and os.access(candidate, os.X_OK):
+            return candidate
+    return None
+
+
+def _bootstrap_worktree(worktree: Path, session: str) -> bool:
+    python312 = _find_python312()
+    if not python312:
+        print(
+            "FAIL  Could not find Python 3.12. Set PATHMINER_PYTHON312 to its absolute path.",
+            file=sys.stderr,
+        )
+        return False
+    venv = worktree / ".venv"
+    workspace = worktree / "workspace"
+    python = venv / "bin" / "python"
+    if not python.is_file():
+        print(f"RUN   create {venv}")
+        if subprocess.run([python312, "-m", "venv", str(venv)], check=False).returncode:
+            return False
+    else:
+        print(f"PASS  virtual environment already exists: {venv}")
+    commands: List[List[str]] = [
+        [str(python), "-m", "pip", "install", "--upgrade", "pip"],
+        [str(python), "-m", "pip", "install", "--no-compile", "-e", ".[gui,dev]"],
+    ]
+    if int(session) == 4:
+        commands.append([str(python), "-m", "pip", "install", "--no-compile", "scipy"])
+    commands.append([str(python), "-m", "pip", "check"])
+    environment = os.environ.copy()
+    environment["VIRTUAL_ENV"] = str(venv)
+    environment["PATH"] = str(venv / "bin") + os.pathsep + environment.get("PATH", "")
+    environment.pop("PYTHONHOME", None)
+    for command in commands:
+        print("RUN   " + " ".join(command))
+        if subprocess.run(command, cwd=str(workspace), env=environment, check=False).returncode:
+            return False
+    local_sanity = workspace / ".ai" / "bin" / "sanity_check"
+    local_start = workspace / ".ai" / "bin" / "start_claude"
+    for command in (
+        [str(python), str(local_sanity), session],
+        [str(python), str(local_start), session, "--dry-run"],
+    ):
+        if subprocess.run(command, cwd=str(workspace), env=environment, check=False).returncode:
+            return False
+    return True
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("completed_session", help="reviewed and merged session, for example 03")
+    parser.add_argument(
+        "next_session", nargs="?", help="session to assign; defaults to completed session plus one"
+    )
+    parser.add_argument("--dry-run", action="store_true", help="validate without modifying files or Git")
+    parser.add_argument("--yes", action="store_true", help="accept coordinator prompts")
+    parser.add_argument(
+        "--push",
+        action="store_true",
+        help="push the coordinator transition commit to origin/main",
+    )
+    parser.add_argument(
+        "--no-worktree", action="store_true", help="update the ledger without creating a worktree"
+    )
+    parser.add_argument(
+        "--no-bootstrap", action="store_true", help="create the worktree without creating its venv"
+    )
+    parser.add_argument(
+        "--no-launch", action="store_true", help="do not offer to launch Claude after preflight"
+    )
+    args = parser.parse_args()
+
+    try:
+        completed = normalize_session(args.completed_session)
+        target = normalize_session(args.next_session or str(int(completed) + 1))
+        if completed == target:
+            raise ValueError("completed and target sessions must differ")
+        completed_number, target_number = int(completed), int(target)
+        workspace = find_workspace()
+        top = git_top(workspace)
+        completed_prompt = find_prompt(workspace, completed)
+        target_prompt = find_prompt(workspace, target)
+        target_assignment = prompt_assignment(target_prompt)
+        completed_branch = _expected_branch(completed_prompt, completed)
+        target_branch = _expected_branch(target_prompt, target)
+        allowed_paths = _owned_paths(completed_prompt, workspace, completed)
+        ledger = workspace / ".ai" / "coordination" / "SESSION_STATUS.csv"
+        schema_path = workspace / ".ai" / "coordination" / "HANDOFF_SCHEMA.json"
+        (
+            fieldnames,
+            rows,
+            ledger_line_terminator,
+            ledger_has_final_newline,
+        ) = _read_ledger(ledger)
+        indexed_rows = _rows_by_session(rows)
+        worktrees = _worktrees(top)
+    except (OSError, RuntimeError, ValueError) as exc:
+        print(f"FAIL  {exc}", file=sys.stderr)
+        return 1
+
+    checks = Checks()
+    print(f"PathMiner transition: Session {completed} -> Session {target}")
+    print(f"Main checkout    : {top}")
+    print(f"Completed branch : {completed_branch}")
+    print(f"Target branch    : {target_branch}")
+    print(f"Target model     : {target_assignment['model']} / {target_assignment['effort']}")
+    print()
+
+    current_branch = ""
+    main_commit = ""
+    try:
+        current_branch = git_value(workspace, "branch", "--show-current")
+        main_commit = git_value(workspace, "rev-parse", "HEAD")
+    except RuntimeError as exc:
+        checks.failed(f"Git inspection failed: {exc}")
+    if current_branch == "main":
+        checks.passed("current branch is main")
+    else:
+        checks.failed(f"current branch is {current_branch or '(detached)'}; run from main")
+    dirty = _git(top, "status", "--porcelain")
+    if dirty.returncode != 0:
+        checks.failed((dirty.stderr or dirty.stdout).strip() or "git status failed")
+    elif dirty.stdout.strip():
+        checks.failed("main checkout is not clean:\n" + dirty.stdout.rstrip())
+    else:
+        checks.passed("main checkout is clean")
+
+    completed_row = indexed_rows.get(completed_number)
+    target_row = indexed_rows.get(target_number)
+    if completed_row is None:
+        checks.failed(f"Session {completed} is missing from the ledger")
+    elif completed_row.get("state") not in {"ASSIGNED", "INTEGRATED"}:
+        checks.failed(
+            f"Session {completed} state is {completed_row.get('state')!r}; expected ASSIGNED or INTEGRATED"
+        )
+    else:
+        checks.passed(f"Session {completed} ledger state is {completed_row.get('state')}")
+    if target_row is None:
+        checks.failed(f"Session {target} is missing from the ledger")
+    elif target_row.get("state") == "INTEGRATED" or target_row.get("integration_status") == "INTEGRATED":
+        checks.failed(f"Session {target} is already integrated")
+    elif target_row.get("state") not in {"NOT_STARTED", "ASSIGNED"}:
+        checks.failed(
+            f"Session {target} state is {target_row.get('state')!r}; expected NOT_STARTED or ASSIGNED"
+        )
+    else:
+        checks.passed(f"Session {target} ledger state is {target_row.get('state')}")
+
+    completed_ref = _git(top, "rev-parse", "--verify", f"{completed_branch}^{{commit}}")
+    completed_tip = completed_ref.stdout.strip() if completed_ref.returncode == 0 else ""
+    if not completed_tip:
+        checks.failed(f"completed branch is unavailable: {completed_branch}")
+    elif _git(top, "merge-base", "--is-ancestor", completed_tip, "main").returncode == 0:
+        checks.passed(f"completed branch tip {completed_tip[:12]} is merged into main")
+    else:
+        checks.failed(f"Session {completed} branch tip {completed_tip[:12]} is not merged into main")
+
+    handoff_json_path = workspace / ".ai" / "handoffs" / f"Session_{completed}_Claude.json"
+    handoff_md_path = workspace / ".ai" / "handoffs" / f"Session_{completed}_Claude.md"
+    handoff: Dict[str, Any] = {}
+    try:
+        schema = json.loads(schema_path.read_text(encoding="utf-8"))
+        handoff = json.loads(handoff_json_path.read_text(encoding="utf-8"))
+        schema_errors = _validate_json_schema(handoff, schema)
+        if schema_errors:
+            for error in schema_errors:
+                checks.failed(f"handoff schema: {error}")
+        else:
+            checks.passed("JSON handoff validates against HANDOFF_SCHEMA.json")
+    except (OSError, json.JSONDecodeError) as exc:
+        checks.failed(f"could not read handoff/schema: {exc}")
+    if handoff_md_path.is_file():
+        checks.passed("Markdown handoff exists")
+    else:
+        checks.failed(f"Markdown handoff is missing: {handoff_md_path.relative_to(workspace)}")
+
+    if handoff:
+        if handoff.get("session") != completed_number:
+            checks.failed(f"handoff session is {handoff.get('session')!r}, expected {completed_number}")
+        if handoff.get("branch") != completed_branch:
+            checks.failed(f"handoff branch is {handoff.get('branch')!r}, expected {completed_branch!r}")
+        if handoff.get("status") != "READY_FOR_REVIEW":
+            checks.failed(f"handoff status is {handoff.get('status')!r}, expected READY_FOR_REVIEW")
+        final_commit = handoff.get("final_commit")
+        if isinstance(final_commit, str) and final_commit:
+            exists = _git(top, "cat-file", "-e", f"{final_commit}^{{commit}}").returncode == 0
+            merged = _git(top, "merge-base", "--is-ancestor", final_commit, "main").returncode == 0
+            if exists and merged:
+                checks.passed(f"handoff final commit {final_commit[:12]} exists in main history")
+            else:
+                checks.failed(f"handoff final commit is missing from main: {final_commit}")
+        else:
+            checks.failed("handoff final_commit is empty")
+        base = handoff.get("base_commit")
+        if isinstance(base, str) and base and completed_tip:
+            diff = _git(top, "diff", "--name-only", f"{base}..{completed_tip}")
+            if diff.returncode != 0:
+                checks.failed(f"could not inspect Session {completed} scope diff")
+            else:
+                changed = [line for line in diff.stdout.splitlines() if line]
+                out_of_scope = [path for path in changed if path not in allowed_paths]
+                if out_of_scope:
+                    checks.failed(
+                        "completed-session diff contains out-of-scope paths:\n"
+                        + "\n".join(f"  {path}" for path in out_of_scope)
+                    )
+                else:
+                    checks.passed(f"all {len(changed)} changed path(s) are within Session {completed} scope")
+                whitespace = _git(top, "diff", "--check", f"{base}..{completed_tip}")
+                if whitespace.returncode == 0:
+                    checks.passed("completed-session diff passes git diff --check")
+                else:
+                    checks.failed("completed-session diff has whitespace errors:\n" + whitespace.stdout)
+
+    target_dependencies = sorted(prerequisite_numbers(target_assignment))
+    if target_row is not None:
+        ledger_dependencies = sorted(_ledger_prerequisites(target_row.get("prerequisites", "")))
+        if ledger_dependencies == target_dependencies:
+            rendered = ", ".join(f"{value:02d}" for value in target_dependencies) or "none"
+            checks.passed(f"target prompt and ledger prerequisites agree: {rendered}")
+        else:
+            checks.failed(
+                f"target prerequisite mismatch: prompt={target_dependencies}, ledger={ledger_dependencies}"
+            )
+    for dependency in target_dependencies:
+        dependency_row = indexed_rows.get(dependency)
+        satisfied = _integrated(dependency_row) or (
+            dependency == completed_number and bool(completed_tip)
+        )
+        if satisfied:
+            checks.passed(f"target prerequisite Session {dependency:02d} is satisfied")
+        else:
+            checks.failed(f"target prerequisite Session {dependency:02d} is not integrated")
+    if target_assignment["model_id"] and target_assignment["cli_effort"]:
+        checks.passed(
+            f"target maps to {target_assignment['model_id']} / {target_assignment['cli_effort']}"
+        )
+    else:
+        checks.failed("target Claude model or effort has no CLI mapping")
+
+    relative_worktree = Path(f"pathminer-session-{target}-claude")
+    target_worktree = (top / relative_worktree).resolve()
+    target_branch_exists = (
+        _git(top, "show-ref", "--verify", "--quiet", f"refs/heads/{target_branch}").returncode
+        == 0
+    )
+    existing_worktree = worktrees.get(target_branch)
+    if target_row is not None and target_row.get("state") == "NOT_STARTED":
+        if target_branch_exists:
+            checks.failed(f"target branch already exists: {target_branch}")
+        elif target_worktree.exists():
+            checks.failed(f"target worktree path already exists: {target_worktree}")
+        else:
+            checks.passed("target branch and worktree path are available")
+    elif target_row is not None and target_row.get("state") == "ASSIGNED":
+        if target_row.get("branch") != target_branch:
+            checks.failed("target ledger branch does not match the target prompt")
+        elif existing_worktree:
+            checks.passed(f"target worktree already exists: {existing_worktree}")
+        elif target_branch_exists:
+            checks.warned("target branch exists without an attached worktree")
+        elif target_worktree.exists():
+            checks.failed("target worktree path exists without the expected branch")
+        else:
+            checks.passed("assigned target is ready for worktree creation")
+    if _git(top, "check-ignore", "--quiet", "--no-index", f"{relative_worktree}/").returncode == 0:
+        checks.passed("target worktree path is ignored by main")
+    else:
+        checks.failed("target worktree path is not ignored by root .gitignore")
+
+    origin_main = _git(top, "rev-parse", "--verify", "origin/main")
+    if origin_main.returncode == 0:
+        counts = _git(top, "rev-list", "--left-right", "--count", "origin/main...main")
+        if counts.returncode == 0:
+            behind, ahead = (int(item) for item in counts.stdout.split())
+            if behind:
+                checks.failed(f"main is behind origin/main by {behind} commit(s)")
+            elif ahead:
+                checks.warned(f"main is ahead of origin/main by {ahead} commit(s)")
+            else:
+                checks.passed("main matches the locally known origin/main")
+    else:
+        checks.warned("origin/main is unavailable; remote synchronization was not checked")
+
+    if not checks.failures:
+        python, environment = python_environment(workspace)
+        _run_gate(
+            checks,
+            "pip dependency check",
+            [str(python), "-m", "pip", "check"],
+            workspace,
+            environment,
+            120,
+        )
+        _run_gate(
+            checks,
+            "aggregate pytest suite",
+            [str(python), "-m", "pytest", "-q"],
+            workspace,
+            environment,
+            600,
+        )
+        _run_gate(
+            checks,
+            "canonical IP5385 regression",
+            [str(python), "tests/baseline/regression_compare.py", "all"],
+            workspace,
+            environment,
+            900,
+        )
+
+    print()
+    if checks.failures:
+        print(
+            f"TRANSITION CHECK FAILED: {checks.failures} failure(s), "
+            f"{checks.warnings} warning(s)"
+        )
+        return 1
+    print(f"TRANSITION CHECK PASSED: {checks.warnings} warning(s)")
+    if completed_row is None or target_row is None:
+        return 1
+
+    completed_note = completed_row.get("notes", "").strip()
+    audit_note = (
+        f"Coordinator-approved; branch tip {completed_tip[:12]} merged into main "
+        f"at {main_commit[:12]}; aggregate pytest and canonical IP5385 regression passed."
+    )
+    if audit_note not in completed_note:
+        completed_note = f"{completed_note} {audit_note}".strip()
+    completed_desired = {
+        "state": "INTEGRATED",
+        "base_commit": completed_row.get("base_commit") or str(handoff.get("base_commit", "")),
+        "ended_at": completed_row.get("ended_at") or _local_date(),
+        "handoff_path": f".ai/handoffs/Session_{completed}_Claude.json",
+        "result_commit": completed_tip,
+        "integration_status": "INTEGRATED",
+        "notes": completed_note,
+    }
+    target_desired = {
+        "state": "ASSIGNED",
+        "assigned_ai": "Claude",
+        "model": target_assignment["model"],
+        "speed": "not-applicable",
+        "effort": target_assignment["effort"],
+        "base_commit": target_row.get("base_commit") or main_commit,
+        "branch": target_branch,
+        "started_at": target_row.get("started_at") or _local_date(),
+        "ended_at": "",
+        "handoff_path": f".ai/handoffs/Session_{target}_Claude.json",
+        "result_commit": "",
+        "integration_status": "NOT_INTEGRATED",
+        "notes": target_row.get("notes")
+        or "Assigned by advance_session after all declared prerequisites were integrated.",
+    }
+    completed_changes = [
+        (field, completed_row.get(field, ""), value)
+        for field, value in completed_desired.items()
+        if completed_row.get(field, "") != value
+    ]
+    target_changes = [
+        (field, target_row.get(field, ""), value)
+        for field, value in target_desired.items()
+        if target_row.get(field, "") != value
+    ]
+    _display_changes(f"Session {completed} integration changes", completed_changes)
+    _display_changes(f"Session {target} assignment changes", target_changes)
+    print(f"\nTarget worktree: {target_worktree}")
+    if args.dry_run:
+        print("\nDRY RUN: ledger, Git history, branches, worktrees, and environments were not changed.")
+        return 0
+    if not args.yes:
+        if not _confirm(
+            f"\nType APPROVE to confirm Session {completed} received coordinator review: ",
+            expected="APPROVE",
+        ):
+            print("No changes made.")
+            return 1
+        if not _confirm(f"Update the ledger, commit it, and prepare Session {target}? [y/N] "):
+            print("No changes made.")
+            return 1
+
+    if completed_changes or target_changes:
+        original_bytes = ledger.read_bytes()
+        for field, value in completed_desired.items():
+            completed_row[field] = value
+        for field, value in target_desired.items():
+            target_row[field] = value
+        _atomic_write_ledger(
+            ledger,
+            fieldnames,
+            rows,
+            ledger_line_terminator,
+            ledger_has_final_newline,
+        )
+        ledger_rel = ledger.relative_to(top).as_posix()
+        diff_check = _git(top, "diff", "--check", "--", ledger_rel)
+        if diff_check.returncode != 0:
+            ledger.write_bytes(original_bytes)
+            print("FAIL  Ledger update failed git diff --check; original restored", file=sys.stderr)
+            return 1
+        if _git(top, "add", "--", ledger_rel).returncode != 0:
+            ledger.write_bytes(original_bytes)
+            print("FAIL  Could not stage the ledger; original restored", file=sys.stderr)
+            return 1
+        staged = _git(top, "diff", "--cached", "--name-only")
+        staged_paths = [line for line in staged.stdout.splitlines() if line]
+        if staged.returncode != 0 or staged_paths != [ledger_rel]:
+            print("FAIL  Unexpected staged paths; commit not created", file=sys.stderr)
+            return 1
+        commit = _git(
+            top,
+            "commit",
+            "-m",
+            f"chore: integrate Session {completed} and assign Session {target}",
+        )
+        if commit.returncode != 0:
+            print(f"FAIL  git commit failed:\n{(commit.stderr or commit.stdout).rstrip()}", file=sys.stderr)
+            return 1
+        print("\n" + commit.stdout.rstrip())
+    else:
+        print("\nLedger already records this transition; no commit needed.")
+
+    push_transition = args.push
+    if not args.yes and not args.push and origin_main.returncode == 0:
+        push_transition = _confirm("Push the coordinator transition commit to origin/main? [y/N] ")
+    if push_transition:
+        pushed = _git(top, "push", "origin", "main", timeout=300)
+        if pushed.returncode != 0:
+            print(
+                f"FAIL  coordinator commit exists locally, but push failed:\n"
+                f"{(pushed.stderr or pushed.stdout).rstrip()}",
+                file=sys.stderr,
+            )
+            return 1
+        print((pushed.stdout or pushed.stderr).rstrip())
+    elif origin_main.returncode == 0:
+        print("NOTE  Push main before sharing or integrating dependent session work.")
+
+    if args.no_worktree:
+        print("Worktree creation skipped by --no-worktree.")
+        return 0
+    if existing_worktree:
+        target_worktree = existing_worktree
+        print(f"Worktree already exists: {target_worktree}")
+    elif target_branch_exists:
+        result = _git(top, "worktree", "add", str(target_worktree), target_branch)
+        if result.returncode != 0:
+            print(f"FAIL  worktree creation failed:\n{(result.stderr or result.stdout).rstrip()}")
+            return 1
+    else:
+        result = _git(top, "worktree", "add", str(target_worktree), "-b", target_branch, "main")
+        if result.returncode != 0:
+            print(f"FAIL  worktree creation failed:\n{(result.stderr or result.stdout).rstrip()}")
+            return 1
+        print((result.stdout or result.stderr).rstrip())
+    if args.no_bootstrap:
+        print("Environment bootstrap skipped by --no-bootstrap.")
+        return 0
+    if not _bootstrap_worktree(target_worktree, target):
+        print("FAIL  Worktree exists, but environment/preflight did not complete", file=sys.stderr)
+        return 1
+    if args.no_launch:
+        print(f"\nReady: cd {target_worktree / 'workspace'} && start_claude {target}")
+        return 0
+    if not args.yes and not _confirm(f"\nLaunch Claude for Session {target} now? [y/N] "):
+        print(f"Ready: cd {target_worktree / 'workspace'} && start_claude {target}")
+        return 0
+    python = target_worktree / ".venv" / "bin" / "python"
+    workspace_target = target_worktree / "workspace"
+    environment = os.environ.copy()
+    environment["VIRTUAL_ENV"] = str(target_worktree / ".venv")
+    environment["PATH"] = str(python.parent) + os.pathsep + environment.get("PATH", "")
+    environment.pop("PYTHONHOME", None)
+    return subprocess.run(
+        [str(python), str(workspace_target / ".ai" / "bin" / "start_claude"), target],
+        cwd=str(workspace_target),
+        env=environment,
+        check=False,
+    ).returncode
+
+
+if __name__ == "__main__":
+    sys.exit(main())

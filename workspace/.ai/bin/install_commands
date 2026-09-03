@@ -25,7 +25,7 @@ def main() -> int:
     parser.add_argument(
         "--force",
         action="store_true",
-        help="replace existing start_claude and sanity_check symlinks",
+        help="replace existing PathMiner AI command symlinks",
     )
     args = parser.parse_args()
 
@@ -35,15 +35,20 @@ def main() -> int:
     destination.mkdir(parents=True, exist_ok=True)
     library.mkdir(parents=True, exist_ok=True)
 
-    for name in ("pathminer_ai_common.py", "sanity_check", "start_claude"):
+    for name in (
+        "pathminer_ai_common.py",
+        "advance_session",
+        "sanity_check",
+        "start_claude",
+    ):
         source = source_dir / name
         installed = library / name
         shutil.copy2(source, installed)
-        if name in {"sanity_check", "start_claude"}:
+        if name in {"advance_session", "sanity_check", "start_claude"}:
             installed.chmod(installed.stat().st_mode | 0o111)
         print(f"COPY  {source} -> {installed}")
 
-    for name in ("sanity_check", "start_claude"):
+    for name in ("advance_session", "sanity_check", "start_claude"):
         source = library / name
         target = destination / name
         if target.is_symlink() and target.resolve() == source.resolve():
@@ -70,7 +75,10 @@ def main() -> int:
         print('export PATH="$HOME/.local/bin:$PATH"')
     else:
         print()
-        print("Commands are ready: sanity_check 01; start_claude 01")
+        print(
+            "Commands are ready: advance_session 02; "
+            "sanity_check 02; start_claude 02"
+        )
     return 0
 
 
