@@ -107,6 +107,76 @@ def solve_dense(matrix, rhs):
 
 
 # --------------------------------------------------------------------------
+# Shared validation and component restriction (cross-backend consistency)
+# --------------------------------------------------------------------------
+
+
+def _prepare(edges, src, dst):
+    """Validate *edges* and restrict them to the connected component of *src*.
+
+    Shared by every edge-list backend (``solve_cg``, ``solve_scipy``, and the
+    dense dispatcher) so that dense, CG, SciPy, and ``auto`` fail and succeed
+    on exactly the same inputs. v0.13 validated only inside ``_solve_scipy``;
+    its dense ``network_resistance`` raised a bare ``singular network matrix``
+    on unrelated components (and ``KeyError`` on ``src == dst`` or a missing
+    endpoint), while ``solve_cg`` silently returned a plausible but wrong value
+    for a disconnected, invalid, or non-converged system.
+
+    Rules, applied identically for every backend:
+
+    * every resistance must be finite — a ``NaN``/``inf`` raises
+      ``ValueError('non-finite resistance in network')`` (v0.13's dense path
+      poisoned the matrix with ``1/NaN``; its sparse path silently dropped it);
+    * a non-positive resistance (``r <= 0``) is dropped, as v0.13 does;
+    * a self-loop (``u == v``) is dropped, as v0.13 does;
+    * *src* and *dst* must both appear in *edges*, else
+      ``ValueError('endpoint not in graph')``;
+    * *src* and *dst* must differ, else
+      ``ValueError('source and sink are the same node')`` (v0.13 raised a bare
+      ``KeyError``);
+    * *dst* must lie in *src*'s connected component, else
+      ``ValueError('endpoints are not connected')``.
+
+    Returns ``(sub_edges, nodes)``: the usable edges whose endpoints are both
+    in *src*'s component, and that component as a list in ``sorted(..., key=str)``
+    order — v0.13's node ordering, so the numerics of a valid connected network
+    are bit-for-bit unchanged. Unrelated components are dropped, exactly as
+    v0.13 already did in ``_solve_scipy``, so a stray disconnected island no
+    longer makes the dense or CG solve diverge from SciPy.
+    """
+    node_set = set()
+    adj = {}
+    usable = []
+    for u, v, r in edges:
+        node_set.add(u)
+        node_set.add(v)
+        if not math.isfinite(r):
+            raise ValueError("non-finite resistance in network")
+        if r <= 0 or u == v:
+            continue
+        usable.append((u, v, r))
+        adj.setdefault(u, set()).add(v)
+        adj.setdefault(v, set()).add(u)
+    if src not in node_set or dst not in node_set:
+        raise ValueError("endpoint not in graph")
+    if src == dst:
+        raise ValueError("source and sink are the same node")
+    comp = {src}
+    stack = [src]
+    while stack:
+        cur = stack.pop()
+        for nxt in adj.get(cur, ()):
+            if nxt not in comp:
+                comp.add(nxt)
+                stack.append(nxt)
+    if dst not in comp:
+        raise ValueError("endpoints are not connected")
+    sub = [(u, v, r) for (u, v, r) in usable if u in comp and v in comp]
+    nodes = sorted(comp, key=str)
+    return sub, nodes
+
+
+# --------------------------------------------------------------------------
 # Pure-Python sparse backend (v0.13 ``solve_cg``) — always available
 # --------------------------------------------------------------------------
 
@@ -114,18 +184,24 @@ def solve_dense(matrix, rhs):
 def solve_cg(edges, src, dst, tol=1e-13, maxit=50000):
     """Two-terminal resistance by Jacobi-preconditioned CG on the grounded Laplacian.
 
-    Ported verbatim from v0.13 ``solve_cg``. Returns ``(resistance, node_count,
-    iterations)``. Equipotential groups must already be merged by the caller -
-    tiny tie resistors destroy the conditioning.
+    Ported from v0.13 ``solve_cg`` with the numerics unchanged for a valid
+    connected network. Returns ``(resistance, node_count, iterations)``.
+    Equipotential groups must already be merged by the caller - tiny tie
+    resistors destroy the conditioning.
+
+    Two guards are added over v0.13, which did neither, so CG cannot report a
+    plausible value for a bad system: :func:`_prepare` validates the inputs and
+    restricts them to *src*'s connected component, and the solve raises
+    ``ValueError('conjugate-gradient solve did not converge')`` when the
+    residual never falls below *tol* within *maxit* iterations, instead of
+    returning the last iterate.
     """
-    nodes = sorted({u for u, _v, _r in edges} | {v for _u, v, _r in edges}, key=str)
+    sub, nodes = _prepare(edges, src, dst)
     idx = {n: i for i, n in enumerate(nodes)}
     n = len(nodes)
     nbr = [[] for _ in range(n)]
     diag = [0.0] * n
-    for u, v, r in edges:
-        if r <= 0 or u == v:
-            continue
+    for u, v, r in sub:
         g = 1.0 / r
         iu, iv = idx[u], idx[v]
         nbr[iu].append((iv, g)); nbr[iv].append((iu, g))
@@ -151,6 +227,7 @@ def solve_cg(edges, src, dst, tol=1e-13, maxit=50000):
     z = [M[i] * r[i] for i in range(n)]; z[gnd] = 0.0
     p = z[:]; rz = sum(r[i] * z[i] for i in range(n))
     its = 0
+    converged = False
     for its in range(1, maxit + 1):
         Ap = mv(p)
         pAp = sum(p[i] * Ap[i] for i in range(n))
@@ -161,12 +238,20 @@ def solve_cg(edges, src, dst, tol=1e-13, maxit=50000):
             x[i] += a * p[i]; r[i] -= a * Ap[i]
         r[gnd] = 0.0
         if max(abs(v) for v in r) < tol:
+            converged = True
             break
         z = [M[i] * r[i] for i in range(n)]; z[gnd] = 0.0
         rz2 = sum(r[i] * z[i] for i in range(n))
         beta = rz2 / rz; rz = rz2
         for i in range(n):
             p[i] = z[i] + beta * p[i]
+    if not converged:
+        # Covers CG breakdown (pAp underflow) and exhausting maxit; accept the
+        # iterate only if the residual is genuinely small, else fail loudly.
+        residual = max((abs(r[i]) for i in range(n) if i != gnd), default=0.0)
+        converged = residual < tol
+    if not converged:
+        raise ValueError("conjugate-gradient solve did not converge")
     return x[idx[dst]], len(nodes), its
 
 
@@ -178,48 +263,34 @@ def solve_cg(edges, src, dst, tol=1e-13, maxit=50000):
 def solve_scipy(edges, src, dst):
     """Same nodal problem through compiled sparse code when SciPy is installed.
 
-    Ported verbatim from v0.13 ``_solve_scipy``. Returns ``(resistance,
-    node_count, 1)``. Two to three orders of magnitude faster than the Python
-    CG on meshed pours; the result must agree with it (V20). Raises
-    ``RuntimeError`` if SciPy/NumPy are not installed and ``ValueError`` when
-    the endpoints are not connected or the solve is not finite.
+    Ported from v0.13 ``_solve_scipy`` with the numerics unchanged for a valid
+    connected network. Returns ``(resistance, node_count, 1)``. Two to three
+    orders of magnitude faster than the Python CG on meshed pours; the result
+    must agree with it (V20). Raises ``RuntimeError`` if SciPy/NumPy are not
+    installed, and — via the shared :func:`_prepare` now used by every backend —
+    ``ValueError`` for a non-finite resistance, a missing endpoint, ``src == dst``,
+    or unconnected endpoints. v0.13 already restricted the solve to *src*'s
+    component here; that restriction now lives in :func:`_prepare` so the dense
+    and CG backends share it.
     """
     if not HAVE_SCIPY:
         raise RuntimeError("SciPy backend requested but scipy/numpy are not installed")
-    nodes = sorted({u for u, _v, _r in edges} | {v for _u, v, _r in edges}, key=str)
+    # _prepare drops unrelated components (v0.13 solved over src's component too:
+    # a disconnected grounded Laplacian is singular and spsolve would otherwise
+    # return NaNs with only a stderr warning) and validates the inputs.
+    sub, nodes = _prepare(edges, src, dst)
     idx = {n: i for i, n in enumerate(nodes)}
     n = len(nodes)
     rows, cols, vals = [], [], []
-    for u, v, r in edges:
-        if r <= 0 or u == v:
-            continue
+    for u, v, r in sub:
         g = 1.0 / r
         iu, iv = idx[u], idx[v]
         rows += [iu, iv, iu, iv]
         cols += [iu, iv, iv, iu]
         vals += [g, g, -g, -g]
-    # A disconnected graph makes the grounded Laplacian singular. scipy returns
-    # NaNs with only a warning on stderr, so check reachability first and fail
-    # loudly instead of reporting a nonsense resistance.
-    nbr = {}
-    for u, v, r in edges:
-        if r > 0 and u != v:
-            nbr.setdefault(u, []).append(v)
-            nbr.setdefault(v, []).append(u)
-    seen_n, stack = {src}, [src]
-    while stack:                                     # full component, not early exit
-        cur = stack.pop()
-        for nx in nbr.get(cur, ()):
-            if nx not in seen_n:
-                seen_n.add(nx); stack.append(nx)
-    if dst not in seen_n:
-        raise ValueError("endpoints are not connected")
-    # Other components are still singular even when src and dst are connected,
-    # so solve over the source's component alone.
     L = _sp.coo_matrix((vals, (rows, cols)), shape=(n, n)).tocsr()
     gnd = idx[src]
-    comp = {idx[u] for u in seen_n}
-    keep = [i for i in sorted(comp) if i != gnd]
+    keep = [i for i in range(n) if i != gnd]
     Lr = L[keep, :][:, keep].tocsc()
     b = _np.zeros(len(keep))
     pos = keep.index(idx[dst])
@@ -243,17 +314,21 @@ def _dense_two_terminal(edges, src, dst):
     *src*, inject 1 A at *dst*, and read ``V[dst]`` from the grounded
     conductance matrix solved by :func:`solve_dense`. Parallel edges between
     the same pair add in parallel; non-positive resistances are dropped.
+
+    Validation and component restriction go through the shared :func:`_prepare`
+    (same as CG and SciPy), so an unrelated component no longer makes the
+    grounded matrix singular — v0.13's dense path built the matrix over every
+    node and raised a bare ``singular network matrix`` when a stray island was
+    present, even though *src* and *dst* were connected. For a valid connected
+    network the component is the whole graph, so the matrix and result are
+    bit-for-bit identical to v0.13.
     """
-    nodes_all = sorted({u for u, _v, _r in edges} | {v for _u, v, _r in edges}, key=str)
-    if src not in nodes_all or dst not in nodes_all:
-        raise ValueError("endpoint not in graph")
+    sub, nodes_all = _prepare(edges, src, dst)
     nodes = [n for n in nodes_all if n != src]        # src is ground, excluded
     idx = {n: i for i, n in enumerate(nodes)}
     size = len(nodes)
     G = [[0.0] * size for _ in range(size)]
-    for u, v, r in edges:
-        if r <= 0:
-            continue
+    for u, v, r in sub:
         g = 1.0 / r
         iu = idx.get(u)
         iv = idx.get(v)
@@ -288,7 +363,12 @@ def two_terminal_resistance(edges, src, dst, backend="auto",
         ``"scipy"``  force the compiled SciPy sparse solve.
 
     All backends solve the same nodal problem and agree within solver
-    precision on the same network (ARCH-006).
+    precision on the same network (ARCH-006). They also validate consistently:
+    every backend routes through the shared :func:`_prepare`, so a non-finite
+    resistance, a missing endpoint, ``src == dst``, or unconnected endpoints
+    raise the same named ``ValueError`` regardless of which backend runs, and an
+    unrelated (disconnected) component is dropped rather than changing or
+    corrupting the result. Non-positive resistances are dropped as in v0.13.
     """
     node_count = len({u for u, _v, _r in edges} | {v for _u, v, _r in edges})
     if backend == "auto":

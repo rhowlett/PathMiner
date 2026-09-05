@@ -220,13 +220,6 @@ def test_custom_dense_limit_forces_sparse_path():
 # ---------------------------------------------------------------------------
 
 
-def test_dense_singular_network_raises():
-    # dst sits in a disconnected component -> singular grounded matrix.
-    edges = [("A", "B", 1.0), ("C", "D", 1.0)]
-    with pytest.raises(ValueError, match="singular network matrix"):
-        two_terminal_resistance(edges, "A", "D", backend="dense")
-
-
 def test_dense_endpoint_not_in_graph_raises():
     with pytest.raises(ValueError, match="endpoint not in graph"):
         two_terminal_resistance([("A", "B", 1.0)], "Z", "B", backend="dense")
@@ -245,5 +238,121 @@ def test_scipy_disconnected_endpoints_raise():
 
 
 def test_solve_dense_singular_matrix_raises():
+    # The raw dense primitive still guards a genuinely singular matrix.
     with pytest.raises(ValueError, match="singular network matrix"):
         solve_dense([[1.0, 1.0], [1.0, 1.0]], [1.0, 2.0])
+
+
+# ---------------------------------------------------------------------------
+# Cross-backend consistency (coordinator CHANGES_REQUESTED repair).
+#
+# Every edge-list backend now routes through the shared validation/component
+# handling in ``pathminer.core.solver._prepare``, so dense, CG, SciPy, and the
+# ``auto`` dispatcher fail and succeed on exactly the same inputs. Each test
+# below asserts the SAME outcome across every available backend. v0.13 was
+# inconsistent here: ``_solve_scipy`` validated and restricted to the source's
+# component, but ``solve_cg`` returned a plausible-but-wrong value for a
+# disconnected or non-converged system and the dense path raised a bare
+# ``singular network matrix`` (or ``KeyError``) on unrelated components,
+# ``src == dst``, or a missing endpoint.
+# ---------------------------------------------------------------------------
+
+AVAILABLE_BACKENDS = ["dense", "cg"] + (["scipy"] if HAVE_SCIPY else [])
+
+
+def _resistance_each_backend(edges, src, dst):
+    """Return {backend: resistance} for every available backend."""
+    return {b: two_terminal_resistance(edges, src, dst, backend=b)
+            for b in AVAILABLE_BACKENDS}
+
+
+def _assert_all_backends_raise(edges, src, dst, match):
+    """Assert every available backend raises ValueError matching *match*."""
+    for backend in AVAILABLE_BACKENDS:
+        with pytest.raises(ValueError, match=match):
+            two_terminal_resistance(edges, src, dst, backend=backend)
+
+
+def test_disconnected_endpoints_raise_on_every_backend():
+    # dst is in a different component from src: no finite resistance exists, so
+    # no backend may return a value (v0.13's CG would have returned garbage).
+    edges = [("A", "B", 1.0), ("C", "D", 1.0)]
+    _assert_all_backends_raise(edges, "A", "D", "not connected")
+    _assert_all_backends_raise(edges, "A", "D", "not connected")  # backend="auto"
+    with pytest.raises(ValueError, match="not connected"):
+        two_terminal_resistance(edges, "A", "D")            # auto too
+
+
+def test_unrelated_component_is_ignored_consistently():
+    # A stray disconnected island must not change the answer or crash any
+    # backend; the src<->dst resistance is solved over src's component alone.
+    base = [("A", "B", 1.0), ("B", "C", 1.0)]               # A..C = 2.0
+    stray = base + [("X", "Y", 5.0), ("Y", "Z", 7.0)]       # unrelated island
+    got = _resistance_each_backend(stray, "A", "C")
+    for backend, r in got.items():
+        assert r == pytest.approx(2.0, abs=1e-9), f"{backend} = {r}"
+    # And the stray island leaves the answer identical to the clean network.
+    clean = _resistance_each_backend(base, "A", "C")
+    for backend in AVAILABLE_BACKENDS:
+        assert got[backend] == pytest.approx(clean[backend], abs=1e-12)
+
+
+def test_src_equals_dst_raises_on_every_backend():
+    # A self-resistance query is degenerate (v0.13 raised a bare KeyError);
+    # every backend now raises the same named error rather than returning 0.0.
+    _assert_all_backends_raise([("A", "B", 1.0)], "A", "A", "same node")
+
+
+def test_non_positive_resistances_are_dropped_consistently():
+    # r <= 0 edges are dropped by every backend (v0.13 behavior): adding a
+    # zero-ohm and a negative parallel edge must not change 2||3 = 1.2.
+    clean = [("A", "B", 2.0), ("A", "B", 3.0)]
+    with_bad = clean + [("A", "B", 0.0), ("A", "B", -4.0)]
+    got = _resistance_each_backend(with_bad, "A", "B")
+    for backend, r in got.items():
+        assert r == pytest.approx(1.2, abs=1e-9), f"{backend} = {r}"
+
+
+@pytest.mark.parametrize("bad", [float("nan"), float("inf"), float("-inf")])
+def test_non_finite_resistance_raises_on_every_backend(bad):
+    # A NaN/inf resistance is corrupt input. v0.13's dense path poisoned the
+    # matrix with 1/NaN while its sparse path silently dropped it; now every
+    # backend rejects it with the same named error.
+    edges = [("A", "B", 1.0), ("B", "C", bad)]
+    _assert_all_backends_raise(edges, "A", "C", "non-finite resistance")
+
+
+def test_missing_endpoint_raises_on_every_backend():
+    # An endpoint that appears on no edge is a caller error, consistently named.
+    _assert_all_backends_raise([("A", "B", 1.0)], "Z", "B", "endpoint not in graph")
+    _assert_all_backends_raise([("A", "B", 1.0)], "A", "Z", "endpoint not in graph")
+
+
+def test_cg_non_convergence_raises_not_returns():
+    # With maxit far too small the residual never reaches tol; CG must raise
+    # instead of returning the last (wrong) iterate. dense/scipy have no
+    # iteration limit and still solve the same network.
+    edges = _grid_edges(6)                                  # 36-node grid
+    with pytest.raises(ValueError, match="did not converge"):
+        solve_cg(edges, (0, 0), (5, 5), maxit=1)
+    # The very same network solves cleanly on every backend at the default limit.
+    got = _resistance_each_backend(edges, (0, 0), (5, 5))
+    ref = got["dense"]
+    for backend, r in got.items():
+        assert r == pytest.approx(ref, abs=1e-6), f"{backend} = {r}"
+
+
+def test_all_backends_agree_on_a_disconnected_diagnosis():
+    # The three backends must not disagree on whether a system is solvable:
+    # a disconnected network raises on all, a connected one returns on all.
+    disconnected = [("A", "B", 1.0), ("C", "D", 1.0)]
+    connected = [("A", "B", 1.0), ("B", "C", 1.0)]
+    raised = 0
+    for backend in AVAILABLE_BACKENDS:
+        try:
+            two_terminal_resistance(disconnected, "A", "D", backend=backend)
+        except ValueError:
+            raised += 1
+    assert raised == len(AVAILABLE_BACKENDS)               # all raised, none returned
+    got = _resistance_each_backend(connected, "A", "C")
+    assert all(r == pytest.approx(2.0, abs=1e-9) for r in got.values())
