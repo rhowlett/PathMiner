@@ -1,0 +1,119 @@
+{
+  "session": 4,
+  "ai": "Claude",
+  "model": "Opus-4.8",
+  "speed": "not-applicable",
+  "effort": "extra",
+  "status": "READY_FOR_REVIEW",
+  "base_commit": "5d97fc7d00421f048042a91b37d4f188a75352fa",
+  "final_commit": "deb88813e9b97561a5c05cf73050ec9682e9919e",
+  "branch": "ai/session-04-claude-geometry-solver",
+  "patch_checksum": "sha256:ebad4de02cadc706f5d0f97149cba6a1f4ecb546325572b4f8e014215514df1f",
+  "punch_items": [
+    {
+      "id": "BASE-005",
+      "role": "closure owner",
+      "status": "closed",
+      "evidence": "Done-when ('the decision and performance thresholds for introducing compiled acceleration are documented') met by documents/adr/ADR-010.md: records the C/C++-rewrite deferral, the pure-Python fallback requirement, opportunistic SciPy, and the thresholds (DENSE_NODE_LIMIT=400 dense/sparse crossover, SciPy-else-CG sparse preference, CG tol=1e-13/maxit=50000, t=a*nodes^b calibration model, and explicit trigger criteria to revisit). Thresholds codified in pathminer/core/solver.py and pinned by tests/test_solver.py::test_dense_node_limit_is_400. Pure-Python fallback retained (solve_cg, guarded HAVE_SCIPY)."
+    },
+    {
+      "id": "ARCH-006",
+      "role": "contributor (backend slice)",
+      "status": "implemented",
+      "evidence": "two_terminal_resistance consolidates dense / pure-Python CG / optional SciPy behind one dispatcher; backend agreement asserted on the same networks (tests/test_solver.py::test_v11_backends_agree over all 7 V11 topologies and test_v20_scipy_and_python_solvers_agree). Left implemented not closed: overall ARCH-006 closure is Session 08, which owns the compatibility facade routing the legacy runtime through this dispatcher."
+    },
+    {
+      "id": "ARCH-010",
+      "role": "contributor",
+      "status": "implemented",
+      "evidence": "Module tests retain original v0.13 acceptance-vector identities for this slice (V11 network, V13 geometry, V14 shunt array, V20 backend agreement/calibration) in test IDs and docstrings, so module tests and a future aggregate --selftest report the same vector identities. Closure remains later (Session 08/10)."
+    }
+  ],
+  "files": {
+    "added": [
+      "pathminer/core/geometry.py",
+      "pathminer/core/solver.py",
+      "tests/test_geometry.py",
+      "tests/test_solver.py",
+      "documents/adr/ADR-010.md"
+    ],
+    "modified": [],
+    "removed": []
+  },
+  "apis_changed": [
+    "NEW pathminer.core.geometry.point_in_polygon(pt, poly) -> bool",
+    "NEW pathminer.core.geometry.segment_polygon_crossings(p1, p2, poly) -> list[float]",
+    "NEW pathminer.core.geometry.distance_to_polygon(pt, poly) -> float",
+    "NEW pathminer.core.geometry.principal_axis(pts) -> ((cx,cy),(ux,uy),length,width,u0)",
+    "NEW pathminer.core.geometry.clip_segment_to_polygon(p1, p2, poly) -> (outside, inside)",
+    "NEW pathminer.core.geometry.cluster_points(points, max_gap=2.0) -> list[list]",
+    "NEW pathminer.core.geometry.cluster_summary(groups) -> list[dict]",
+    "NEW pathminer.core.geometry.arc_length(sx, sy, mx, my, ex, ey) -> float",
+    "NEW pathminer.core.solver.HAVE_SCIPY (bool)",
+    "NEW pathminer.core.solver.DENSE_NODE_LIMIT (int = 400)",
+    "NEW pathminer.core.solver.solve_dense(matrix, rhs) -> list[float]",
+    "NEW pathminer.core.solver.solve_cg(edges, src, dst, tol=1e-13, maxit=50000) -> (r, n, its)",
+    "NEW pathminer.core.solver.solve_scipy(edges, src, dst) -> (r, n, 1)",
+    "NEW pathminer.core.solver.two_terminal_resistance(edges, src, dst, backend='auto', dense_limit=DENSE_NODE_LIMIT) -> float",
+    "NEW pathminer.core.solver.calibrate_solver() -> dict",
+    "NEW pathminer.core.solver.estimate_seconds(nodes) -> float"
+  ],
+  "schemas_changed": [],
+  "compatibility_consequences": [
+    "None. tools/pcb_trace_resistance.py is unchanged and remains the runtime behavioral source of truth; it still carries its own copies of these functions. Wiring the legacy script (or its generated replacement) to import from pathminer.core is a Session 08 step."
+  ],
+  "tests": [
+    {
+      "command": "python3 -m pytest -q",
+      "exit_code": 0,
+      "result": "93 passed (pre-change baseline, recorded before any edit)",
+      "runtime_seconds": null
+    },
+    {
+      "command": "python3 -m pytest -q tests/test_geometry.py tests/test_solver.py",
+      "exit_code": 0,
+      "result": "70 passed (required verification command)",
+      "runtime_seconds": 0.9
+    },
+    {
+      "command": "python3 -m pytest -q",
+      "exit_code": 0,
+      "result": "163 passed (93 baseline + 70 new; no regressions; import-boundary ARCH-002 tests still pass against new core modules)",
+      "runtime_seconds": 1.04
+    },
+    {
+      "command": "QT_QPA_PLATFORM=offscreen python3 (ad-hoc v0.13 parity cross-check; not committed)",
+      "exit_code": 0,
+      "result": "12/12 PASS: all geometry helpers and both sparse backends bit-identical (==) to v0.13 originals; solve_dense bit-identical; dense dispatcher matches v0.13 network_resistance within 1e-12",
+      "runtime_seconds": null
+    }
+  ],
+  "decisions": [
+    "Dispatcher (two_terminal_resistance) operates on the backend-neutral edge list [(u,v,r),...] already shared by the CG/SciPy backends, not on v0.13's adjacency+rfun (a network-layer shape, ARCH-004/Session 07), keeping core/solver pure and backend-independent while reproducing v0.13's dense/sparse crossover exactly.",
+    "Dense two-terminal path re-derived from an edge list to build the same grounded conductance matrix and return V[dst]; verified equal to v0.13 network_resistance within 1e-12.",
+    "All backends and the dense dispatcher use sorted(nodes, key=str) node ordering (v0.13's CG/SciPy convention), giving deterministic output; float differences vs v0.13's dict-order dense path are ~1e-15, inside V11 tolerances.",
+    "Extracted functions given clean public names with provenance recorded in docstrings; behavior, epsilons, and tie-breaks copied verbatim (Session 03 precedent).",
+    "BASE-005 marked closed because its Done-when is documentation of a decision + thresholds, fully within this session's owned scope (unlike Session 03's PWR-001, which needed cross-session modules)."
+  ],
+  "assumptions": [
+    "Base commit is HEAD 5d97fc7 (git rev-parse HEAD); it is the coordinator-approved 293a1be plus one metadata-only SESSION_STATUS.csv edit, and 293a1be / Session 02 result a6ac7b7 / Session 03 result 1b97f16 are all in ancestry.",
+    "Board/network-coupled helpers (Pour, parse_pours, build_pour_ladder, mesh_pour_edges, build_graph_pour, estimate_nodes) and IPC trace-rise are intentionally out of this session's geometry/solver scope (Sessions 05-07 / RET-007).",
+    "SciPy 1.18.1 and NumPy 2.5.2 are present in this environment, so SciPy-guarded tests executed; on a SciPy-less target those tests skip and solve_cg is the fallback (ADR-003)."
+  ],
+  "deviations": [
+    "documents/change_log.md not updated (outside owned write scope; Sessions 02-03 also left it to integration).",
+    "pathminer/core/__init__.py planning comment left untouched (outside owned write scope); its description of geometry.py/solver.py matches what was built.",
+    "solve_scipy raises a named RuntimeError when SciPy is absent (guard on a newly public function; v0.13 only called _solve_scipy under HAVE_SCIPY). Not a numerical change."
+  ],
+  "known_issues": [
+    "None. No test failures; nothing skipped for a missing dependency. Large meshed pours on SciPy-less machines remain CG-bound by design until an ADR-010 trigger fires."
+  ],
+  "dependent_session_impact": [
+    "Session 05/06: hand board copper to core.geometry as plain (x,y) tuples and [(x,y),...] rings; rebuild Pour-style strip scoring on principal_axis.",
+    "Session 07: build the network as an edge list and call two_terminal_resistance; price edges via pathminer.core.resistance (Session 03) and clip tracks via clip_segment_to_polygon.",
+    "Session 08: closure point for ARCH-006 - route the legacy runtime through two_terminal_resistance, re-verify the full V-vector set end to end, and drop the in-file solver/geometry copies.",
+    "Session 13: build ARCH-007 graph/factorization reuse on this dispatcher's stable API, per ADR-010's optimization ordering.",
+    "All new APIs are additive and self-contained; no breaking change to any existing surface is expected."
+  ],
+  "recommended_next_action": "Coordinator: review diff and handoff (optionally route a read-only paired-model review of deb8881), then integrate onto the branch Sessions 05-07 start from. BASE-005 presented as closed via ADR-010; ARCH-006/ARCH-010 remain contributor slices for their named later sessions. Only the coordinator marks the session INTEGRATED."
+}
