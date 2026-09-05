@@ -1,6 +1,7 @@
 # Session 04 — AI Handoff
 
-- Status: READY_FOR_REVIEW
+- Status: READY_FOR_REVIEW (re-submitted after coordinator review
+  `CHANGES_REQUESTED`; see "Review repair" below)
 - AI / model / speed / effort: Claude / Opus-4.8 / not-applicable / extra
 - Branch / worktree: ai/session-04-claude-geometry-solver
 - Base commit: `5d97fc7d00421f048042a91b37d4f188a75352fa`
@@ -11,9 +12,12 @@
   Session 03's result commit `1b97f16` are all ancestors of HEAD; no
   owned-scope file differs between `293a1be` and `5d97fc7`. Recorded HEAD per
   the prompt's "record `git rev-parse HEAD`" rule.)
-- Final commit: `deb88813e9b97561a5c05cf73050ec9682e9919e`
-- Patch checksum: sha256 `ebad4de02cadc706f5d0f97149cba6a1f4ecb546325572b4f8e014215514df1f`
-  (diff `5d97fc7..deb8881`)
+- Final commit: `583ed1fa345dd9195c9e316d93bf5dd540eb2c52`
+  (first cut was `deb88813e9b97561a5c05cf73050ec9682e9919e`; the review-repair
+  commit above supersedes it on the same branch)
+- Patch checksum: sha256 `23b101d5beda44955429f319d73650d93b0ac6d45f6dff0b285fa237a0922410`
+  (diff `5d97fc7..583ed1f`, owned-scope files: geometry.py, solver.py,
+  test_geometry.py, test_solver.py, ADR-010.md)
 
 ## Preflight (recorded before any edit)
 
@@ -25,6 +29,68 @@
 - Environment: Python 3.12.13, pytest 9.1.1, **SciPy 1.18.1 / NumPy 2.5.2
   present** — so the optional-SciPy backend path executes rather than skipping.
 - Pre-change tests: `python3 -m pytest -q` → **93 passed**, exit 0.
+
+## Review repair (coordinator `CHANGES_REQUESTED`, 2026-09-05)
+
+Coordinator review of the first cut (`deb8881`) requested backend
+consistency: dense, CG, SciPy, and `auto` must behave identically for
+disconnected endpoints, unrelated components, `src == dst`, non-positive /
+non-finite resistances, missing endpoints, and CG non-convergence — while
+preserving v0.13 numerical parity on valid connected graphs — with explicit
+regression tests asserting consistent outcomes across every available backend.
+
+**Root cause (inherited from v0.13, not a port defect).** v0.13's
+`_solve_scipy` validated its inputs and restricted the solve to the source's
+connected component, but `solve_cg` did neither (it returned the last iterate
+for a disconnected or non-converged system) and the dense `network_resistance`
+path raised a bare `singular network matrix` on unrelated components and
+`KeyError` on `src == dst` / a missing endpoint. The three backends could
+disagree on whether a network was solvable at all.
+
+**Repair (owned scope only — `pathminer/core/solver.py`, `tests/test_solver.py`,
+`documents/adr/ADR-010.md`, and this handoff pair):**
+
+- Added one shared helper `pathminer.core.solver._prepare(edges, src, dst)`
+  that every edge-list backend and the `auto` dispatcher now route through. It
+  validates resistances (finite; non-positive and self-loops dropped as in
+  v0.13), checks endpoint presence and `src != dst`, computes `src`'s connected
+  component, requires `dst` in it, and returns the component-restricted edge
+  list with v0.13's `sorted(…, key=str)` node order.
+- Added a **convergence guard** to `solve_cg`: it raises
+  `ValueError("conjugate-gradient solve did not converge")` when the residual
+  never falls below `tol` within `maxit`, instead of returning the iterate — so
+  CG can no longer report a plausible value for an unconverged system.
+- Unified the error taxonomy across all backends (`non-finite resistance in
+  network`, `endpoint not in graph`, `source and sink are the same node`,
+  `endpoints are not connected`, `conjugate-gradient solve did not converge`).
+- Unrelated (disconnected) components are now **dropped consistently** by every
+  backend (the rule v0.13 already applied only in `_solve_scipy`), so a stray
+  island neither changes the answer nor makes the dense/CG solve diverge.
+
+**Parity preserved.** For a valid connected network the component is the whole
+graph, so `_prepare` changes neither the node set nor its ordering. Re-run of
+the V11/V20 parity cross-check: `solve_cg` and `solve_scipy` remain
+**bit-identical** (`==`) to v0.13 and the dense dispatcher stays within 1e-12
+of v0.13 `network_resistance` (24/24 checks). The only inputs whose behavior
+changed are the previously undefined or backend-divergent ones, which now fail
+loudly and identically. One v0.13-tolerated input is now rejected: a non-finite
+(`NaN`/`inf`) resistance (v0.13's dense path poisoned the matrix with `1/NaN`;
+its sparse path silently dropped it) — carry an "open" as an omitted edge, not
+`inf`. This is documented in ADR-010's new "Backend Consistency and Input
+Validation" section.
+
+**New regression tests** (`tests/test_solver.py`, "Cross-backend consistency"
+section), each asserting the same outcome across every available backend:
+disconnected endpoints raise on all; unrelated component ignored identically;
+`src == dst` raises on all; non-positive edges dropped identically; non-finite
+(`NaN`/`+inf`/`-inf`) raises on all; missing endpoint raises on all; CG
+non-convergence raises (dense/scipy still solve); and a combined
+solvable/unsolvable-diagnosis agreement test. The now-obsolete
+`test_dense_singular_network_raises` (which asserted the old bare "singular
+network matrix" on a disconnected edge list) was replaced by
+`test_disconnected_endpoints_raise_on_every_backend`; the raw-matrix
+`test_solve_dense_singular_matrix_raises` for the `solve_dense` primitive is
+retained.
 
 ## Implementation note (required before coding, item 1 of Required work)
 
@@ -69,7 +135,7 @@ private helpers to clean public APIs and documented provenance).
 | ID | Role | Status | Evidence |
 |---|---|---|---|
 | BASE-005 | closure owner | closed | Done-when is "the decision and performance thresholds for introducing compiled acceleration are documented." `documents/adr/ADR-010.md` records the deferral decision (defer C/C++ rewrite; optimize graph/factorization reuse first; keep the pure-Python `solve_cg` fallback always available; adopt SciPy opportunistically) **and** the thresholds: `DENSE_NODE_LIMIT = 400` dense/sparse crossover, the SciPy-else-CG sparse preference, the CG `tol=1e-13`/`maxit=50000`, the `t = a·nodes^b` calibration model, and explicit trigger criteria for revisiting compiled acceleration. The pure-Python fallback is retained in code (`solve_cg`, guarded `HAVE_SCIPY`). Thresholds are codified in `pathminer/core/solver.py` and regression-pinned by `tests/test_solver.py::test_dense_node_limit_is_400`. |
-| ARCH-006 | contributor (backend slice) | implemented | "Consolidate solvers behind one dispatcher … with identical results and metadata. Done when: backend agreement is asserted on the same networks." `two_terminal_resistance` is the single dispatcher over dense / pure-Python CG / optional SciPy. Backend agreement is asserted on the same networks in `tests/test_solver.py` (`test_v11_backends_agree` across all 7 V11 topologies; `test_v20_scipy_and_python_solvers_agree`). Left **implemented, not closed**: ARCH-006's overall closure is Session 08 (SESSION_INDEX.md / plan §15.2), which also owns the compatibility façade that routes the legacy runtime through this dispatcher. |
+| ARCH-006 | contributor (backend slice) | implemented | "Consolidate solvers behind one dispatcher … with identical results and metadata. Done when: backend agreement is asserted on the same networks." `two_terminal_resistance` is the single dispatcher over dense / pure-Python CG / optional SciPy. Backend agreement is asserted on the same networks in `tests/test_solver.py` (`test_v11_backends_agree` across all 7 V11 topologies; `test_v20_scipy_and_python_solvers_agree`). The review repair strengthens this slice: agreement now covers *failure*, not just value — every backend routes through the shared `_prepare`, so dense/CG/SciPy/`auto` accept and reject the same inputs (asserted in the new cross-backend consistency tests). Left **implemented, not closed**: ARCH-006's overall closure is Session 08 (SESSION_INDEX.md / plan §15.2), which also owns the compatibility façade that routes the legacy runtime through this dispatcher. |
 | ARCH-010 | contributor | implemented | "Split the self-test by module while retaining stable vector IDs." Module tests retain the original v0.13 acceptance-vector identities for this slice (V11 network, V13 geometry, V14 shunt array, V20 backend agreement/calibration) in test IDs and docstrings, so a future aggregate `--selftest` and these module tests report the same vector identities. Closure remains later (Session 08/10). |
 
 ## Changes
@@ -94,7 +160,14 @@ private helpers to clean public APIs and documented provenance).
     maxit=50000) -> (r, n, its)`, `solve_scipy(edges, src, dst) -> (r, n, 1)`,
     `two_terminal_resistance(edges, src, dst, backend="auto",
     dense_limit=DENSE_NODE_LIMIT) -> float`, `calibrate_solver() -> dict`,
-    `estimate_seconds(nodes) -> float`.
+    `estimate_seconds(nodes) -> float`. `__all__` is unchanged; the shared
+    validator `_prepare` is private (leading underscore, not exported).
+    Signatures are unchanged by the repair; the only public-surface change is
+    stricter, named `ValueError`s (see the behavior table in ADR-010): `solve_cg`
+    now raises `"conjugate-gradient solve did not converge"` rather than
+    returning a non-converged iterate, and all backends now raise the same
+    validation errors (`non-finite resistance in network`, `endpoint not in
+    graph`, `source and sink are the same node`, `endpoints are not connected`).
 - Schemas/migrations changed: none.
 - Compatibility consequences: none. `tools/pcb_trace_resistance.py` was not
   touched; it remains the runtime behavioral source of truth and still carries
@@ -103,15 +176,21 @@ private helpers to clean public APIs and documented provenance).
 
 ## Verification
 
+All commands below are the **post-repair** results (2026-09-05); the first-cut
+counts (70 focused / 163 full) are superseded by the +10 consistency tests.
+
 | Command | Exit | Result/counts | Runtime | Notes |
 |---|---:|---|---:|---|
-| `python3 -m pytest -q` (pre-change baseline) | 0 | 93 passed | — | Recorded before any edit. |
-| `python3 -m pytest -q tests/test_geometry.py tests/test_solver.py` | 0 | 70 passed | ~0.90s | Required verification command from the session prompt. |
-| `python3 -m pytest -q` (post-change, full suite) | 0 | 163 passed | ~1.04s | 93 baseline + 70 new; no regressions; import-boundary tests (ARCH-002, 48) still pass against the two new `core/` files. |
-| v0.13 parity cross-check (ad-hoc script, `QT_QPA_PLATFORM=offscreen`) | 0 | 12/12 PASS | — | Imported `tools/pcb_trace_resistance.py` headlessly and compared: all 8 geometry helpers and both sparse backends (`solve_cg`, `solve_scipy`) return **bit-identical** (`==`) results to the v0.13 originals; `solve_dense` bit-identical; `two_terminal_resistance(backend="dense")` matches v0.13 `network_resistance` within 1e-12. Not committed. |
+| `python3 -m pytest -q` (pre-change baseline) | 0 | 93 passed | — | Recorded before any edit (first cut). |
+| `python3 -m pytest tests/test_geometry.py tests/test_solver.py` | 0 | **79 passed** | ~0.90s | Required focused command. 70 first-cut + 10 new cross-backend consistency tests − 1 replaced (`test_dense_singular_network_raises`). |
+| `python3 -m pytest` (post-repair, full suite) | 0 | **172 passed** | ~1.02s | 93 baseline + 79 session tests; no regressions; import-boundary tests (ARCH-002) still pass against the `core/` files. |
+| `QT_QPA_PLATFORM=offscreen python3 tests/baseline/regression_compare.py all` | 0 | **headless 118/118, powerbank 284/284, IP5385 report 1 net / 11 pairs** — all match golden fixtures | — | Canonical IP5385 regression. `tools/pcb_trace_resistance.py` is untouched, so the v0.13 runtime is byte-for-byte unchanged; board SHA-256 `0a1ca4dc…` and netsel SHA-256 `ff8e5ec8…` verified. |
+| v0.13 parity cross-check (ad-hoc, `QT_QPA_PLATFORM=offscreen`) | 0 | **24/24 PASS** | — | Re-run after the repair. On every V11/V20 vector, `solve_cg` and `solve_scipy` are **bit-identical** (`==`) to v0.13 `solve_cg` / `_solve_scipy`; `two_terminal_resistance(backend="dense")` matches v0.13 `network_resistance` within 1e-12. Confirms the shared `_prepare`/component restriction did not perturb valid connected-graph numerics. Not committed. |
 
 - SciPy/NumPy are installed, so all SciPy-guarded tests executed (none skipped
   for missing SciPy). No fixture or dependency was unavailable.
+- The focused suite grew from 70 to 79: the required verification command's
+  count changed because the coordinator authorized the added regression tests.
 
 ## Decisions and assumptions
 
@@ -142,6 +221,26 @@ private helpers to clean public APIs and documented provenance).
   codified thresholds). This differs from Session 03's PWR-001 (left open
   because its clause required cross-session modules); BASE-005 has no such
   cross-session dependency.
+- **(Repair) Shared `_prepare`, not per-backend patches.** Consistency is
+  enforced structurally: one helper validates and restricts to `src`'s
+  component, and every backend calls it. This is why dense/CG/SciPy cannot
+  drift apart on edge cases, and why parity holds (for a connected graph the
+  helper is a no-op on the node set/order).
+- **(Repair) `src == dst` raises rather than returning 0.0.** Grounding `src`
+  and reading `V[src]` would give a self-consistent `0.0`, but a self-resistance
+  query is far more likely a caller error; a named error is loud and matches the
+  other degenerate-input handling. Chosen for consistency and safety; recorded
+  in ADR-010's behavior table.
+- **(Repair) Non-finite resistance rejected; non-positive still dropped.**
+  `r <= 0` is dropped exactly as v0.13 (no valid connected graph carries one, so
+  parity is unaffected), but `NaN`/`inf` — which v0.13 handled inconsistently
+  (dense poisoned via `1/NaN`; sparse silently dropped) — now raises on every
+  backend. `inf` as "open" is not supported; omit the edge.
+- **(Repair) CG convergence is checked, never assumed.** `solve_cg` raises if
+  the residual never reaches `tol` within `maxit`. For the SPD grounded
+  Laplacian of a connected component CG always converges well within `maxit`, so
+  this never fires for valid inputs (V11/V20 unchanged); it only prevents
+  returning a non-converged iterate.
 
 ## Deviations, known failures, or incomplete work
 
