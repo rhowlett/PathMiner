@@ -29,6 +29,7 @@ from pathminer_ai_common import (  # noqa: E402
     prerequisite_numbers,
     prompt_assignment,
     python_environment,
+    shared_venv,
 )
 
 
@@ -330,7 +331,7 @@ def _find_python312() -> str | None:
     return None
 
 
-def _bootstrap_worktree(worktree: Path, session: str) -> bool:
+def _bootstrap_worktree(worktree: Path, session: str, venv: Path) -> bool:
     python312 = _find_python312()
     if not python312:
         print(
@@ -338,7 +339,6 @@ def _bootstrap_worktree(worktree: Path, session: str) -> bool:
             file=sys.stderr,
         )
         return False
-    venv = worktree / ".venv"
     workspace = worktree / "workspace"
     python = venv / "bin" / "python"
     if not python.is_file():
@@ -390,7 +390,9 @@ def main() -> int:
         "--no-worktree", action="store_true", help="update the ledger without creating a worktree"
     )
     parser.add_argument(
-        "--no-bootstrap", action="store_true", help="create the worktree without creating its venv"
+        "--no-bootstrap",
+        action="store_true",
+        help="create the worktree without installing into the shared repository-root .venv",
     )
     parser.add_argument(
         "--no-launch", action="store_true", help="do not offer to launch Claude after preflight"
@@ -648,6 +650,28 @@ def main() -> int:
         return 1
 
     completed_note = completed_row.get("notes", "").strip()
+    open_punch_items = sorted(
+        str(item.get("id"))
+        for item in handoff.get("punch_items", [])
+        if isinstance(item, dict)
+        and item.get("id")
+        and str(item.get("status", "")).lower() == "open"
+    )
+    for item_id in open_punch_items:
+        completed_note = completed_note.replace(
+            f"Session {completed} closes {item_id}",
+            f"Session {completed} contributes to {item_id}",
+        ).replace(
+            f"Session {completed_number} closes {item_id}",
+            f"Session {completed_number} contributes to {item_id}",
+        )
+    if open_punch_items:
+        open_note = (
+            f"Open punch items retained after Session {completed} integration: "
+            f"{', '.join(open_punch_items)}."
+        )
+        if open_note not in completed_note:
+            completed_note = f"{completed_note} {open_note}".strip()
     audit_note = (
         f"Coordinator-approved; branch tip {completed_tip[:12]} merged into main "
         f"at {main_commit[:12]}; aggregate pytest and canonical IP5385 regression passed."
@@ -720,10 +744,24 @@ def main() -> int:
             ledger_has_final_newline,
         )
         ledger_rel = ledger.relative_to(top).as_posix()
-        diff_check = _git(top, "diff", "--check", "--", ledger_rel)
+        # SESSION_STATUS.csv intentionally retains its original CRLF/LF style.
+        # Tell Git that a CR immediately before LF is part of the line ending,
+        # while retaining the normal blank-at-EOL/EOF and space-before-tab checks.
+        diff_check = _git(
+            top,
+            "-c",
+            "core.whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol",
+            "diff",
+            "--check",
+            "--",
+            ledger_rel,
+        )
         if diff_check.returncode != 0:
             ledger.write_bytes(original_bytes)
+            detail = (diff_check.stdout or diff_check.stderr).rstrip()
             print("FAIL  Ledger update failed git diff --check; original restored", file=sys.stderr)
+            if detail:
+                print(detail, file=sys.stderr)
             return 1
         if _git(top, "add", "--", ledger_rel).returncode != 0:
             ledger.write_bytes(original_bytes)
@@ -783,7 +821,8 @@ def main() -> int:
     if args.no_bootstrap:
         print("Environment bootstrap skipped by --no-bootstrap.")
         return 0
-    if not _bootstrap_worktree(target_worktree, target):
+    common_venv = shared_venv(workspace)
+    if not _bootstrap_worktree(target_worktree, target, common_venv):
         print("FAIL  Worktree exists, but environment/preflight did not complete", file=sys.stderr)
         return 1
     if args.no_launch:
@@ -792,10 +831,10 @@ def main() -> int:
     if not args.yes and not _confirm(f"\nLaunch Claude for Session {target} now? [y/N] "):
         print(f"Ready: cd {target_worktree / 'workspace'} && start_claude {target}")
         return 0
-    python = target_worktree / ".venv" / "bin" / "python"
+    python = common_venv / "bin" / "python"
     workspace_target = target_worktree / "workspace"
     environment = os.environ.copy()
-    environment["VIRTUAL_ENV"] = str(target_worktree / ".venv")
+    environment["VIRTUAL_ENV"] = str(common_venv)
     environment["PATH"] = str(python.parent) + os.pathsep + environment.get("PATH", "")
     environment.pop("PYTHONHOME", None)
     return subprocess.run(

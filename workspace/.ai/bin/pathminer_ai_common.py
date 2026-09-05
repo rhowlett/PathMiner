@@ -145,9 +145,27 @@ def git_top(workspace: Path) -> Path:
     return Path(git_value(workspace, "rev-parse", "--show-toplevel")).resolve()
 
 
+def git_common_root(workspace: Path) -> Path:
+    """Return the main checkout root shared by all linked worktrees."""
+    common_text = git_value(workspace, "rev-parse", "--git-common-dir")
+    common = Path(common_text)
+    if not common.is_absolute():
+        common = (workspace / common).resolve()
+    else:
+        common = common.resolve()
+    if common.name != ".git":
+        raise RuntimeError(f"Unexpected Git common directory: {common}")
+    return common.parent
+
+
+def shared_venv(workspace: Path) -> Path:
+    """Return PathMiner's one shared virtual environment directory."""
+    return git_common_root(workspace) / ".venv"
+
+
 def find_python(workspace: Path) -> Path:
     worktree = git_top(workspace)
-    candidates = []
+    candidates = [shared_venv(workspace) / "bin" / "python"]
     active = os.environ.get("VIRTUAL_ENV")
     if active:
         candidates.append(Path(active) / "bin" / "python")

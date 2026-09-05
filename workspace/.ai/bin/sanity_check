@@ -22,6 +22,7 @@ from pathminer_ai_common import (
     prompt_assignment,
     python_environment,
     run,
+    shared_venv,
     status_rows,
 )
 
@@ -185,6 +186,14 @@ def main() -> int:
         checks.failed(f"session ledger check failed: {exc}")
 
     python, python_env = python_environment(workspace)
+    expected_python = shared_venv(workspace) / "bin" / "python"
+    if python.absolute() == expected_python.absolute():
+        checks.passed(f"shared virtual environment is {expected_python.parent.parent}")
+    else:
+        checks.failed(
+            f"shared virtual environment is missing; expected {expected_python}. "
+            "Create the repository-root .venv before starting a session."
+        )
     version = run(
         [python.as_posix(), "-c", "import json,sys; print(json.dumps(list(sys.version_info[:3])))"],
         cwd=workspace,
@@ -271,4 +280,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
-
