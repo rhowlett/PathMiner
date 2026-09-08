@@ -1,7 +1,9 @@
 # Session 04 — AI Handoff
 
 - Status: READY_FOR_REVIEW (re-submitted after coordinator review
-  `CHANGES_REQUESTED`; see "Review repair" below)
+  `CHANGES_REQUESTED`, then the 2026-09-08 coordinator correction making
+  non-positive resistances raise; see "Review repair" and "2026-09-08
+  correction" below)
 - AI / model / speed / effort: Claude / Opus-4.8 / not-applicable / extra
 - Branch / worktree: ai/session-04-claude-geometry-solver
 - Base commit: `5d97fc7d00421f048042a91b37d4f188a75352fa`
@@ -12,11 +14,13 @@
   Session 03's result commit `1b97f16` are all ancestors of HEAD; no
   owned-scope file differs between `293a1be` and `5d97fc7`. Recorded HEAD per
   the prompt's "record `git rev-parse HEAD`" rule.)
-- Final commit: `583ed1fa345dd9195c9e316d93bf5dd540eb2c52`
-  (first cut was `deb88813e9b97561a5c05cf73050ec9682e9919e`; the review-repair
-  commit above supersedes it on the same branch)
-- Patch checksum: sha256 `23b101d5beda44955429f319d73650d93b0ac6d45f6dff0b285fa237a0922410`
-  (diff `5d97fc7..583ed1f`, owned-scope files: geometry.py, solver.py,
+- Final commit: `0cbae38afa9b3aafc77ec030326b9c6d086b24ff`
+  (first cut `deb88813e9b97561a5c05cf73050ec9682e9919e`; first review repair
+  `583ed1fa345dd9195c9e316d93bf5dd540eb2c52`; the 2026-09-08 non-positive
+  correction commit above supersedes both on the same branch. The handoff-update
+  commit that follows it carries this file pair.)
+- Patch checksum: sha256 `70243e248a28e5dd334971f8d267edc3a7dec52da8c571e403b2fb1cea2e87c8`
+  (diff `5d97fc7..0cbae38`, owned-scope files: geometry.py, solver.py,
   test_geometry.py, test_solver.py, ADR-010.md)
 
 ## Preflight (recorded before any edit)
@@ -52,8 +56,9 @@ disagree on whether a network was solvable at all.
 
 - Added one shared helper `pathminer.core.solver._prepare(edges, src, dst)`
   that every edge-list backend and the `auto` dispatcher now route through. It
-  validates resistances (finite; non-positive and self-loops dropped as in
-  v0.13), checks endpoint presence and `src != dst`, computes `src`'s connected
+  validates resistances (finite required; non-positive `r <= 0` on a real edge
+  rejected with a named error; self-loops dropped as in v0.13), checks endpoint
+  presence and `src != dst`, computes `src`'s connected
   component, requires `dst` in it, and returns the component-restricted edge
   list with v0.13's `sorted(…, key=str)` node order.
 - Added a **convergence guard** to `solve_cg`: it raises
@@ -73,16 +78,20 @@ the V11/V20 parity cross-check: `solve_cg` and `solve_scipy` remain
 **bit-identical** (`==`) to v0.13 and the dense dispatcher stays within 1e-12
 of v0.13 `network_resistance` (24/24 checks). The only inputs whose behavior
 changed are the previously undefined or backend-divergent ones, which now fail
-loudly and identically. One v0.13-tolerated input is now rejected: a non-finite
-(`NaN`/`inf`) resistance (v0.13's dense path poisoned the matrix with `1/NaN`;
-its sparse path silently dropped it) — carry an "open" as an omitted edge, not
-`inf`. This is documented in ADR-010's new "Backend Consistency and Input
-Validation" section.
+loudly and identically. Two v0.13-tolerated inputs are now rejected: a
+non-finite (`NaN`/`inf`) resistance (v0.13's dense path poisoned the matrix with
+`1/NaN`; its sparse path silently dropped it), and — per the 2026-09-08
+coordinator correction — a non-positive (`r <= 0`) resistance on a real edge,
+which v0.13 silently dropped on every path. Carry an "open" as an omitted edge
+(not `inf`) and a "short" by merging the two nodes (not `0`). Self-loops
+(`u == v`) remain dropped. This is documented in ADR-010's "Backend Consistency
+and Input Validation" section.
 
 **New regression tests** (`tests/test_solver.py`, "Cross-backend consistency"
 section), each asserting the same outcome across every available backend:
 disconnected endpoints raise on all; unrelated component ignored identically;
-`src == dst` raises on all; non-positive edges dropped identically; non-finite
+`src == dst` raises on all; zero and negative resistances raise on all
+(a self-loop is still dropped, asserted separately); non-finite
 (`NaN`/`+inf`/`-inf`) raises on all; missing endpoint raises on all; CG
 non-convergence raises (dense/scipy still solve); and a combined
 solvable/unsolvable-diagnosis agreement test. The now-obsolete
@@ -91,6 +100,29 @@ network matrix" on a disconnected edge list) was replaced by
 `test_disconnected_endpoints_raise_on_every_backend`; the raw-matrix
 `test_solve_dense_singular_matrix_raises` for the `solve_dense` primitive is
 retained.
+
+## 2026-09-08 correction (coordinator: non-positive must raise)
+
+A follow-up coordinator correction required that **zero and negative
+resistances raise the same named error across dense, CG, SciPy, and `auto`**
+rather than being silently dropped (self-loop handling unchanged). The first
+repair had kept v0.13's "drop `r <= 0`" behavior; a dropped zero/negative edge
+hides corrupt input and is inconsistent with rejecting `NaN`/`inf`.
+
+- `pathminer/core/solver._prepare` now raises
+  `ValueError("non-positive resistance in network")` when `r <= 0` on a real
+  edge (`u != v`). Self-loops (`u == v`) are still dropped, checked *before* the
+  sign test, so their handling is unchanged.
+- `tests/test_solver.py`: the old `test_non_positive_resistances_are_dropped_consistently`
+  is replaced by `test_non_positive_resistance_raises_on_every_backend`
+  (parametrized over zero and negative, asserting the named error on every
+  available backend and on `auto`) plus `test_self_loop_is_still_dropped_not_raised`.
+  Focused suite 79 → **81** (net +2).
+- ADR-010's behavior table and parity note updated; this handoff pair updated.
+- **Parity re-verified** after the correction: v0.13 cross-check **24/24**
+  (`solve_cg`/`solve_scipy` bit-identical, dense within 1e-12) and the canonical
+  IP5385 regression PASS — no valid connected graph carries a non-positive edge,
+  so the change touches corrupt input only.
 
 ## Implementation note (required before coding, item 1 of Required work)
 
@@ -176,20 +208,22 @@ private helpers to clean public APIs and documented provenance).
 
 ## Verification
 
-All commands below are the **post-repair** results (2026-09-05); the first-cut
-counts (70 focused / 163 full) are superseded by the +10 consistency tests.
+All commands below are the **post-correction** results (2026-09-08 re-run); the
+first-cut counts (70 focused / 163 full) and the first-repair counts (79 / 172)
+are superseded by the 2026-09-08 non-positive correction (81 focused / 174 full).
 
 | Command | Exit | Result/counts | Runtime | Notes |
 |---|---:|---|---:|---|
 | `python3 -m pytest -q` (pre-change baseline) | 0 | 93 passed | — | Recorded before any edit (first cut). |
-| `python3 -m pytest tests/test_geometry.py tests/test_solver.py` | 0 | **79 passed** | ~0.90s | Required focused command. 70 first-cut + 10 new cross-backend consistency tests − 1 replaced (`test_dense_singular_network_raises`). |
-| `python3 -m pytest` (post-repair, full suite) | 0 | **172 passed** | ~1.02s | 93 baseline + 79 session tests; no regressions; import-boundary tests (ARCH-002) still pass against the `core/` files. |
+| `python3 -m pytest tests/test_geometry.py tests/test_solver.py` | 0 | **81 passed** | ~1.9s | Required focused command. 79 first-repair + 2 net from the 2026-09-08 non-positive correction (replaced the non-positive-dropped test with parametrized zero/negative named-error tests plus a self-loop-still-dropped test). |
+| `python3 -m pytest` (post-correction, full suite) | 0 | **174 passed** | ~2.1s | 93 baseline + 81 session tests; no regressions; import-boundary tests (ARCH-002) still pass against the `core/` files. |
 | `QT_QPA_PLATFORM=offscreen python3 tests/baseline/regression_compare.py all` | 0 | **headless 118/118, powerbank 284/284, IP5385 report 1 net / 11 pairs** — all match golden fixtures | — | Canonical IP5385 regression. `tools/pcb_trace_resistance.py` is untouched, so the v0.13 runtime is byte-for-byte unchanged; board SHA-256 `0a1ca4dc…` and netsel SHA-256 `ff8e5ec8…` verified. |
 | v0.13 parity cross-check (ad-hoc, `QT_QPA_PLATFORM=offscreen`) | 0 | **24/24 PASS** | — | Re-run after the repair. On every V11/V20 vector, `solve_cg` and `solve_scipy` are **bit-identical** (`==`) to v0.13 `solve_cg` / `_solve_scipy`; `two_terminal_resistance(backend="dense")` matches v0.13 `network_resistance` within 1e-12. Confirms the shared `_prepare`/component restriction did not perturb valid connected-graph numerics. Not committed. |
 
 - SciPy/NumPy are installed, so all SciPy-guarded tests executed (none skipped
   for missing SciPy). No fixture or dependency was unavailable.
-- The focused suite grew from 70 to 79: the required verification command's
+- The focused suite grew from 70 to 81 (70 → 79 in the first repair, 79 → 81 in
+  the 2026-09-08 non-positive correction): the required verification command's
   count changed because the coordinator authorized the added regression tests.
 
 ## Decisions and assumptions
@@ -231,11 +265,15 @@ counts (70 focused / 163 full) are superseded by the +10 consistency tests.
   query is far more likely a caller error; a named error is loud and matches the
   other degenerate-input handling. Chosen for consistency and safety; recorded
   in ADR-010's behavior table.
-- **(Repair) Non-finite resistance rejected; non-positive still dropped.**
-  `r <= 0` is dropped exactly as v0.13 (no valid connected graph carries one, so
-  parity is unaffected), but `NaN`/`inf` — which v0.13 handled inconsistently
-  (dense poisoned via `1/NaN`; sparse silently dropped) — now raises on every
-  backend. `inf` as "open" is not supported; omit the edge.
+- **(Repair) Non-finite and non-positive resistances rejected; self-loops
+  dropped.** `NaN`/`inf` — which v0.13 handled inconsistently (dense poisoned
+  via `1/NaN`; sparse silently dropped) — now raises on every backend. Per the
+  2026-09-08 coordinator correction, a non-positive `r <= 0` on a real edge,
+  which v0.13 silently dropped on every path, now also raises the named
+  `non-positive resistance in network` on every backend rather than being
+  dropped. No valid connected graph carries either, so parity is unaffected.
+  `inf` as "open" and `0` as "short" are not supported; omit the edge or merge
+  the nodes. Self-loops (`u == v`) remain dropped, unchanged.
 - **(Repair) CG convergence is checked, never assumed.** `solve_cg` raises if
   the residual never reaches `tol` within `maxit`. For the SPD grounded
   Laplacian of a connected component CG always converges well within `maxit`, so

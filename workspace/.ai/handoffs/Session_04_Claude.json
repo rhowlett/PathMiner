@@ -6,9 +6,9 @@
   "effort": "extra",
   "status": "READY_FOR_REVIEW",
   "base_commit": "5d97fc7d00421f048042a91b37d4f188a75352fa",
-  "final_commit": "583ed1fa345dd9195c9e316d93bf5dd540eb2c52",
+  "final_commit": "0cbae38afa9b3aafc77ec030326b9c6d086b24ff",
   "branch": "ai/session-04-claude-geometry-solver",
-  "patch_checksum": "sha256:23b101d5beda44955429f319d73650d93b0ac6d45f6dff0b285fa237a0922410",
+  "patch_checksum": "sha256:70243e248a28e5dd334971f8d267edc3a7dec52da8c571e403b2fb1cea2e87c8",
   "punch_items": [
     {
       "id": "BASE-005",
@@ -72,14 +72,14 @@
     {
       "command": "python3 -m pytest tests/test_geometry.py tests/test_solver.py",
       "exit_code": 0,
-      "result": "79 passed (required focused command, post-repair: 70 first-cut + 10 new cross-backend consistency tests - 1 replaced)",
-      "runtime_seconds": 0.9
+      "result": "81 passed (required focused command, post-correction: 79 first-repair + 2 net from the 2026-09-08 non-positive correction - replaced the non-positive-dropped test with parametrized zero/negative named-error tests plus a self-loop-still-dropped test)",
+      "runtime_seconds": 1.9
     },
     {
       "command": "python3 -m pytest",
       "exit_code": 0,
-      "result": "172 passed (post-repair full suite: 93 baseline + 79 session tests; no regressions; import-boundary ARCH-002 tests still pass against core modules)",
-      "runtime_seconds": 1.02
+      "result": "174 passed (post-correction full suite: 93 baseline + 81 session tests; no regressions; import-boundary ARCH-002 tests still pass against core modules)",
+      "runtime_seconds": 2.1
     },
     {
       "command": "QT_QPA_PLATFORM=offscreen python3 tests/baseline/regression_compare.py all",
@@ -102,8 +102,9 @@
     "BASE-005 marked closed because its Done-when is documentation of a decision + thresholds, fully within this session's owned scope (unlike Session 03's PWR-001, which needed cross-session modules).",
     "REPAIR (CHANGES_REQUESTED): consistency enforced structurally via one shared helper _prepare(edges, src, dst) that every edge-list backend and the auto dispatcher call - it validates resistances, checks endpoint presence and src!=dst, restricts to src's connected component (v0.13's sorted(key=str) order), and requires dst in it. Backends cannot drift apart on edge cases, and parity holds because for a connected graph the helper is a no-op on the node set/order.",
     "REPAIR: src==dst raises ValueError('source and sink are the same node') rather than returning a self-consistent 0.0 - a self-resistance query is far more likely a caller error, and a loud named error matches the other degenerate-input handling (v0.13 raised a bare KeyError here).",
-    "REPAIR: non-finite (NaN/inf) resistances now raise on every backend ('non-finite resistance in network'); v0.13 handled them inconsistently (dense poisoned the matrix via 1/NaN, sparse silently dropped). Non-positive (r<=0) and self-loop edges are still dropped exactly as v0.13, so valid connected-graph parity is unaffected. Carrying 'open' as inf is unsupported; omit the edge.",
-    "REPAIR: solve_cg now checks convergence and raises 'conjugate-gradient solve did not converge' if the residual never reaches tol within maxit, instead of returning the last iterate. For the SPD grounded Laplacian of a connected component CG always converges well within maxit, so this never fires for valid inputs (V11/V20 unchanged)."
+    "REPAIR: non-finite (NaN/inf) resistances now raise on every backend ('non-finite resistance in network'); v0.13 handled them inconsistently (dense poisoned the matrix via 1/NaN, sparse silently dropped). Self-loop (u==v) edges are still dropped exactly as v0.13. Valid connected-graph parity is unaffected. Carrying 'open' as inf is unsupported; omit the edge.",
+    "REPAIR: solve_cg now checks convergence and raises 'conjugate-gradient solve did not converge' if the residual never reaches tol within maxit, instead of returning the last iterate. For the SPD grounded Laplacian of a connected component CG always converges well within maxit, so this never fires for valid inputs (V11/V20 unchanged).",
+    "CORRECTION (coordinator, 2026-09-08): a non-positive resistance (r<=0) on a real edge now raises ValueError('non-positive resistance in network') on every backend (dense, CG, SciPy, auto) instead of being silently dropped as v0.13 did; self-loop (u==v) handling is unchanged (still dropped). No valid connected graph carries a non-positive edge, so parity is unaffected (24/24 cross-check, IP5385 regression PASS). This supersedes the earlier 'non-positive dropped' claim in ADR-010 and both handoffs."
   ],
   "assumptions": [
     "Base commit is HEAD 5d97fc7 (git rev-parse HEAD); it is the coordinator-approved 293a1be plus one metadata-only SESSION_STATUS.csv edit, and 293a1be / Session 02 result a6ac7b7 / Session 03 result 1b97f16 are all in ancestry.",
@@ -115,8 +116,9 @@
     "pathminer/core/__init__.py planning comment left untouched (outside owned write scope); its description of geometry.py/solver.py matches what was built.",
     "solve_scipy raises a named RuntimeError when SciPy is absent (guard on a newly public function; v0.13 only called _solve_scipy under HAVE_SCIPY). Not a numerical change.",
     "REPAIR: a non-finite (NaN/inf) resistance is now rejected on every backend, whereas v0.13 tolerated it (dense via 1/NaN, sparse by dropping). This is a deliberate, documented behavior change for corrupt input only - no valid connected graph carries a non-finite resistance - and is recorded in ADR-010's behavior table.",
+    "CORRECTION (2026-09-08): a non-positive (r<=0) resistance on a real edge is now rejected on every backend ('non-positive resistance in network'), whereas v0.13 and the first repair cut dropped it. Deliberate, documented behavior change for corrupt input only - no valid connected graph carries r<=0 - recorded in ADR-010's behavior table; self-loops (u==v) are still dropped.",
     "REPAIR: the first-cut test test_dense_singular_network_raises (asserting the bare 'singular network matrix' on a disconnected edge list) was replaced by test_disconnected_endpoints_raise_on_every_backend, since a disconnected edge list now yields the consistent 'endpoints are not connected' across all backends. The raw-matrix primitive test test_solve_dense_singular_matrix_raises is retained.",
-    "REPAIR: the required focused command's count changed from 70 to 79 because the coordinator authorized the added cross-backend regression tests."
+    "CORRECTION (2026-09-08): the first-repair test test_non_positive_resistances_are_dropped_consistently was replaced by test_non_positive_resistance_raises_on_every_backend (parametrized over zero and negative) plus test_self_loop_is_still_dropped_not_raised. The required focused command's count changed from 79 to 81 (net +2)."
   ],
   "known_issues": [
     "None. No test failures; nothing skipped for a missing dependency. Large meshed pours on SciPy-less machines remain CG-bound by design until an ADR-010 trigger fires."
@@ -128,5 +130,5 @@
     "Session 13: build ARCH-007 graph/factorization reuse on this dispatcher's stable API, per ADR-010's optimization ordering.",
     "All new APIs are additive and self-contained; no breaking change to any existing surface is expected."
   ],
-  "recommended_next_action": "Coordinator: re-review the repair diff (5d97fc7..583ed1f) and this updated handoff. The CHANGES_REQUESTED items are addressed: shared _prepare gives dense/CG/SciPy/auto one behavior table for disconnected endpoints, unrelated components, src==dst, non-positive/non-finite resistances, missing endpoints and CG non-convergence, with regression tests asserting consistent outcomes across every available backend; v0.13 parity for valid connected graphs is preserved (24/24 cross-check, canonical IP5385 regression PASS). Then integrate onto the branch Sessions 05-07 start from. BASE-005 presented as closed via ADR-010; ARCH-006/ARCH-010 remain contributor slices for their named later sessions. Only the coordinator marks the session INTEGRATED."
+  "recommended_next_action": "Coordinator: re-review the repair diff (5d97fc7..0cbae38, which includes the 2026-09-08 non-positive correction) and this updated handoff. The CHANGES_REQUESTED items are addressed: shared _prepare gives dense/CG/SciPy/auto one behavior table for disconnected endpoints, unrelated components, src==dst, non-positive/non-finite resistances, missing endpoints and CG non-convergence, with regression tests asserting consistent outcomes across every available backend; v0.13 parity for valid connected graphs is preserved (24/24 cross-check, canonical IP5385 regression PASS). Then integrate onto the branch Sessions 05-07 start from. BASE-005 presented as closed via ADR-010; ARCH-006/ARCH-010 remain contributor slices for their named later sessions. Only the coordinator marks the session INTEGRATED."
 }
