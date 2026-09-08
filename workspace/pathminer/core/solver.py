@@ -127,8 +127,10 @@ def _prepare(edges, src, dst):
     * every resistance must be finite — a ``NaN``/``inf`` raises
       ``ValueError('non-finite resistance in network')`` (v0.13's dense path
       poisoned the matrix with ``1/NaN``; its sparse path silently dropped it);
-    * a non-positive resistance (``r <= 0``) is dropped, as v0.13 does;
     * a self-loop (``u == v``) is dropped, as v0.13 does;
+    * a non-positive resistance (``r <= 0``) on a real edge raises
+      ``ValueError('non-positive resistance in network')`` (Session 04 review
+      correction — v0.13 silently dropped these, hiding a data error);
     * *src* and *dst* must both appear in *edges*, else
       ``ValueError('endpoint not in graph')``;
     * *src* and *dst* must differ, else
@@ -152,8 +154,10 @@ def _prepare(edges, src, dst):
         node_set.add(v)
         if not math.isfinite(r):
             raise ValueError("non-finite resistance in network")
-        if r <= 0 or u == v:
+        if u == v:                       # self-loop carries no current; drop (v0.13)
             continue
+        if r <= 0:
+            raise ValueError("non-positive resistance in network")
         usable.append((u, v, r))
         adj.setdefault(u, set()).add(v)
         adj.setdefault(v, set()).add(u)
@@ -313,7 +317,8 @@ def _dense_two_terminal(edges, src, dst):
     Reproduces v0.13 ``network_resistance``'s small-graph branch: ground
     *src*, inject 1 A at *dst*, and read ``V[dst]`` from the grounded
     conductance matrix solved by :func:`solve_dense`. Parallel edges between
-    the same pair add in parallel; non-positive resistances are dropped.
+    the same pair add in parallel; a non-positive resistance raises via
+    :func:`_prepare` (self-loops are still dropped).
 
     Validation and component restriction go through the shared :func:`_prepare`
     (same as CG and SciPy), so an unrelated component no longer makes the
@@ -368,7 +373,8 @@ def two_terminal_resistance(edges, src, dst, backend="auto",
     resistance, a missing endpoint, ``src == dst``, or unconnected endpoints
     raise the same named ``ValueError`` regardless of which backend runs, and an
     unrelated (disconnected) component is dropped rather than changing or
-    corrupting the result. Non-positive resistances are dropped as in v0.13.
+    corrupting the result. A non-positive resistance (``r <= 0``) raises the same
+    named error on every backend; a self-loop (``u == v``) is still dropped.
     """
     node_count = len({u for u, _v, _r in edges} | {v for _u, v, _r in edges})
     if backend == "auto":

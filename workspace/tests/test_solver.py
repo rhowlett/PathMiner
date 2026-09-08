@@ -303,12 +303,23 @@ def test_src_equals_dst_raises_on_every_backend():
     _assert_all_backends_raise([("A", "B", 1.0)], "A", "A", "same node")
 
 
-def test_non_positive_resistances_are_dropped_consistently():
-    # r <= 0 edges are dropped by every backend (v0.13 behavior): adding a
-    # zero-ohm and a negative parallel edge must not change 2||3 = 1.2.
-    clean = [("A", "B", 2.0), ("A", "B", 3.0)]
-    with_bad = clean + [("A", "B", 0.0), ("A", "B", -4.0)]
-    got = _resistance_each_backend(with_bad, "A", "B")
+@pytest.mark.parametrize("bad", [0.0, -4.0], ids=["zero", "negative"])
+def test_non_positive_resistance_raises_on_every_backend(bad):
+    # r <= 0 on a real edge is corrupt input. v0.13 silently dropped it
+    # (Session 04 review correction): now every backend rejects both zero and
+    # negative resistances with the same named error instead of dropping them.
+    edges = [("A", "B", 1.0), ("B", "C", 2.0), ("A", "C", bad)]
+    _assert_all_backends_raise(edges, "A", "C", "non-positive resistance")
+    with pytest.raises(ValueError, match="non-positive resistance"):
+        two_terminal_resistance(edges, "A", "C")            # auto too
+
+
+def test_self_loop_is_still_dropped_not_raised():
+    # Self-loop handling is unchanged by the non-positive correction: a u == v
+    # edge carries no current and is dropped, so a valid network that includes
+    # one still solves to the same answer on every backend (2||3 = 1.2).
+    edges = [("A", "B", 2.0), ("A", "B", 3.0), ("A", "A", 5.0)]  # self-loop dropped
+    got = _resistance_each_backend(edges, "A", "B")
     for backend, r in got.items():
         assert r == pytest.approx(1.2, abs=1e-9), f"{backend} = {r}"
 
