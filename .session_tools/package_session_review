@@ -30,6 +30,15 @@ class ReviewError(RuntimeError):
     """A condition that would make the review artifacts incomplete or ambiguous."""
 
 
+# SESSION_STATUS.csv intentionally retains its original CRLF/LF style.  Git's
+# default whitespace checker treats CR in a CRLF line ending as trailing
+# whitespace, so explicitly recognize it as a line ending while keeping the
+# normal blank-at-EOL/EOF and space-before-tab checks enabled.
+_GIT_WHITESPACE_CONFIG = (
+    "core.whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol"
+)
+
+
 def _run(top: Path, command: Sequence[str], timeout: int = 120) -> subprocess.CompletedProcess[str]:
     try:
         return subprocess.run(
@@ -267,7 +276,17 @@ def main() -> int:
             ("Session commits", ["git", "log", "--oneline", "--decorate", f"{base_commit}..{head}"]),
             ("Session diff stat", ["git", "diff", "--stat", f"{base_commit}..{head}"]),
             ("Session paths", ["git", "diff", "--name-status", f"{base_commit}..{head}"]),
-            ("Session diff check", ["git", "diff", "--check", f"{base_commit}..{head}"]),
+            (
+                "Session diff check",
+                [
+                    "git",
+                    "-c",
+                    _GIT_WHITESPACE_CONFIG,
+                    "diff",
+                    "--check",
+                    f"{base_commit}..{head}",
+                ],
+            ),
             ("Handoff JSON", ["git", "show", f"HEAD:{handoff_path.relative_to(top).as_posix()}"]),
         ]
         for title, command in commands:
