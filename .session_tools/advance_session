@@ -331,7 +331,12 @@ def _find_python312() -> str | None:
     return None
 
 
-def _bootstrap_worktree(worktree: Path, session: str, venv: Path) -> bool:
+def _bootstrap_worktree(
+    worktree: Path,
+    session: str,
+    venv: Path,
+    session_tools: Path,
+) -> bool:
     python312 = _find_python312()
     if not python312:
         print(
@@ -356,14 +361,19 @@ def _bootstrap_worktree(worktree: Path, session: str, venv: Path) -> bool:
     commands.append([str(python), "-m", "pip", "check"])
     environment = os.environ.copy()
     environment["VIRTUAL_ENV"] = str(venv)
-    environment["PATH"] = str(venv / "bin") + os.pathsep + environment.get("PATH", "")
+    environment["PATH"] = os.pathsep.join(
+        [str(venv / "bin"), str(session_tools), environment.get("PATH", "")]
+    )
     environment.pop("PYTHONHOME", None)
     for command in commands:
         print("RUN   " + " ".join(command))
         if subprocess.run(command, cwd=str(workspace), env=environment, check=False).returncode:
             return False
-    local_sanity = workspace / ".ai" / "bin" / "sanity_check"
-    local_start = workspace / ".ai" / "bin" / "start_claude"
+    local_sanity = session_tools / "sanity_check"
+    local_start = session_tools / "start_claude"
+    if not local_sanity.is_file() or not local_start.is_file():
+        print(f"FAIL  Session tools are incomplete: {session_tools}", file=sys.stderr)
+        return False
     for command in (
         [str(python), str(local_sanity), session],
         [str(python), str(local_start), session, "--dry-run"],
@@ -423,6 +433,7 @@ def main() -> int:
         ) = _read_ledger(ledger)
         indexed_rows = _rows_by_session(rows)
         worktrees = _worktrees(top)
+        session_tools = top / ".session_tools"
     except (OSError, RuntimeError, ValueError) as exc:
         print(f"FAIL  {exc}", file=sys.stderr)
         return 1
@@ -822,7 +833,7 @@ def main() -> int:
         print("Environment bootstrap skipped by --no-bootstrap.")
         return 0
     common_venv = shared_venv(workspace)
-    if not _bootstrap_worktree(target_worktree, target, common_venv):
+    if not _bootstrap_worktree(target_worktree, target, common_venv, session_tools):
         print("FAIL  Worktree exists, but environment/preflight did not complete", file=sys.stderr)
         return 1
     if args.no_launch:
@@ -835,10 +846,12 @@ def main() -> int:
     workspace_target = target_worktree / "workspace"
     environment = os.environ.copy()
     environment["VIRTUAL_ENV"] = str(common_venv)
-    environment["PATH"] = str(python.parent) + os.pathsep + environment.get("PATH", "")
+    environment["PATH"] = os.pathsep.join(
+        [str(python.parent), str(session_tools), environment.get("PATH", "")]
+    )
     environment.pop("PYTHONHOME", None)
     return subprocess.run(
-        [str(python), str(workspace_target / ".ai" / "bin" / "start_claude"), target],
+        [str(python), str(session_tools / "start_claude"), target],
         cwd=str(workspace_target),
         env=environment,
         check=False,

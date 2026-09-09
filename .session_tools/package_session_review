@@ -1,0 +1,337 @@
+#!/usr/bin/env python3
+"""Create the Git report and bundle used for PathMiner session review."""
+
+from __future__ import annotations
+
+import argparse
+import csv
+import hashlib
+import json
+import os
+import subprocess
+import sys
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Dict, List, Sequence
+
+# Importing the shared helper must not create an untracked __pycache__ directory.
+sys.dont_write_bytecode = True
+
+from pathminer_ai_common import (  # noqa: E402
+    find_workspace,
+    git_common_root,
+    git_top,
+    is_relative_to,
+    normalize_session,
+)
+
+
+class ReviewError(RuntimeError):
+    """A condition that would make the review artifacts incomplete or ambiguous."""
+
+
+def _run(top: Path, command: Sequence[str], timeout: int = 120) -> subprocess.CompletedProcess[str]:
+    try:
+        return subprocess.run(
+            list(command),
+            cwd=top,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=timeout,
+            check=False,
+        )
+    except FileNotFoundError as exc:
+        raise ReviewError(str(exc)) from exc
+    except subprocess.TimeoutExpired as exc:
+        raise ReviewError(f"command timed out after {timeout}s: {' '.join(command)}") from exc
+
+
+def _git(top: Path, *args: str, timeout: int = 120) -> subprocess.CompletedProcess[str]:
+    return _run(top, ["git", *args], timeout=timeout)
+
+
+def _require(result: subprocess.CompletedProcess[str], description: str) -> str:
+    if result.returncode != 0:
+        detail = (result.stderr or result.stdout).strip()
+        raise ReviewError(f"{description} failed: {detail or f'exit {result.returncode}'}")
+    return result.stdout.strip()
+
+
+def _ledger_row(workspace: Path, session_number: int) -> Dict[str, str]:
+    ledger = workspace / ".ai" / "coordination" / "SESSION_STATUS.csv"
+    with ledger.open("r", encoding="utf-8-sig", newline="") as handle:
+        matches = [row for row in csv.DictReader(handle) if int(row["session"]) == session_number]
+    if len(matches) != 1:
+        raise ReviewError(
+            f"expected exactly one Session {session_number:02d} row in {ledger}; found {len(matches)}"
+        )
+    return matches[0]
+
+
+def _sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for block in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def _record_command(
+    report: List[str],
+    top: Path,
+    title: str,
+    command: Sequence[str],
+    timeout: int = 120,
+) -> subprocess.CompletedProcess[str]:
+    result = _run(top, command, timeout=timeout)
+    report.extend(
+        [
+            "",
+            f"===== {title} =====",
+            f"$ {' '.join(command)}",
+            f"exit_code: {result.returncode}",
+        ]
+    )
+    if result.stdout:
+        report.append(result.stdout.rstrip())
+    if result.stderr:
+        report.append("[stderr]")
+        report.append(result.stderr.rstrip())
+    return result
+
+
+def _read_handoff(workspace: Path, session: str, row: Dict[str, str]) -> tuple[Path, Dict[str, object]]:
+    relative = row.get("handoff_path") or f".ai/handoffs/Session_{session}_Claude.json"
+    handoff_path = workspace / relative
+    if not handoff_path.is_file():
+        raise ReviewError(f"JSON handoff does not exist: {handoff_path}")
+    try:
+        handoff = json.loads(handoff_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ReviewError(f"cannot read JSON handoff {handoff_path}: {exc}") from exc
+    if not isinstance(handoff, dict):
+        raise ReviewError(f"JSON handoff is not an object: {handoff_path}")
+    return handoff_path, handoff
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("session", help="completed session number, for example 04")
+    parser.add_argument(
+        "--output-dir",
+        type=Path,
+        help="directory for artifacts; default is the directory containing the main checkout",
+    )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="atomically replace artifacts with the same names",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="perform preflight checks and show output paths without creating files",
+    )
+    args = parser.parse_args()
+
+    try:
+        session = normalize_session(args.session)
+        session_number = int(session)
+        workspace = find_workspace()
+        top = git_top(workspace)
+        main_top = git_common_root(workspace)
+        row = _ledger_row(workspace, session_number)
+
+        expected_branch = row.get("branch", "").strip()
+        if not expected_branch:
+            raise ReviewError(f"Session {session} has no assigned branch in SESSION_STATUS.csv")
+        current_branch = _require(
+            _git(top, "branch", "--show-current"), "reading current branch"
+        )
+        if current_branch != expected_branch:
+            raise ReviewError(
+                f"current branch is {current_branch!r}; Session {session} requires {expected_branch!r}"
+            )
+
+        status = _require(
+            _git(top, "status", "--porcelain=v1", "--untracked-files=all"),
+            "checking worktree status",
+        )
+        if status:
+            raise ReviewError(
+                "worktree is not clean; uncommitted files are excluded from Git bundles:\n" + status
+            )
+
+        head = _require(_git(top, "rev-parse", "HEAD"), "reading branch tip")
+        branch_tip = _require(
+            _git(top, "rev-parse", f"refs/heads/{expected_branch}"),
+            "reading assigned branch tip",
+        )
+        if head != branch_tip:
+            raise ReviewError(f"HEAD {head} is not the assigned branch tip {branch_tip}")
+
+        handoff_path, handoff = _read_handoff(workspace, session, row)
+        if handoff.get("session") != session_number:
+            raise ReviewError(
+                f"handoff session is {handoff.get('session')!r}; expected {session_number}"
+            )
+        if handoff.get("branch") != expected_branch:
+            raise ReviewError(
+                f"handoff branch is {handoff.get('branch')!r}; expected {expected_branch!r}"
+            )
+        if handoff.get("status") != "READY_FOR_REVIEW":
+            raise ReviewError(
+                f"handoff status is {handoff.get('status')!r}; expected 'READY_FOR_REVIEW'"
+            )
+
+        base_commit = str(handoff.get("base_commit", "")).strip()
+        final_commit = str(handoff.get("final_commit", "")).strip()
+        if not base_commit or not final_commit:
+            raise ReviewError("handoff must contain non-empty base_commit and final_commit")
+        _require(_git(top, "cat-file", "-e", f"{base_commit}^{{commit}}"), "checking base commit")
+        _require(_git(top, "cat-file", "-e", f"{final_commit}^{{commit}}"), "checking final commit")
+        if _git(top, "merge-base", "--is-ancestor", base_commit, head).returncode != 0:
+            raise ReviewError(f"handoff base commit {base_commit} is not an ancestor of HEAD")
+        if _git(top, "merge-base", "--is-ancestor", final_commit, head).returncode != 0:
+            raise ReviewError(f"handoff final commit {final_commit} is not an ancestor of HEAD")
+
+        markdown_handoff = handoff_path.with_suffix(".md")
+        if not markdown_handoff.is_file():
+            raise ReviewError(f"Markdown handoff does not exist: {markdown_handoff}")
+        tracked = _require(
+            _git(
+                top,
+                "ls-files",
+                "--error-unmatch",
+                str(handoff_path.relative_to(top)),
+                str(markdown_handoff.relative_to(top)),
+            ),
+            "checking that both handoffs are tracked",
+        )
+        if len(tracked.splitlines()) != 2:
+            raise ReviewError("Git did not report both handoff files as tracked")
+
+        output_dir = (
+            args.output_dir.expanduser().resolve()
+            if args.output_dir
+            else main_top.parent.resolve()
+        )
+        if is_relative_to(output_dir, main_top):
+            raise ReviewError(
+                f"output directory {output_dir} is inside the main checkout; "
+                "choose a location outside it so artifact creation cannot dirty main"
+            )
+        output_dir.mkdir(parents=True, exist_ok=True)
+        log_path = output_dir / f"git_{session}.log"
+        bundle_path = output_dir / f"pathminer-session{session}.bundle"
+        for target in (log_path, bundle_path):
+            if target.exists() and not args.force:
+                raise ReviewError(f"output already exists: {target} (use --force to replace it)")
+
+        print(f"PathMiner Session {session} review package")
+        print(f"Branch : {expected_branch}")
+        print(f"Tip    : {head}")
+        print(f"Log    : {log_path}")
+        print(f"Bundle : {bundle_path}")
+        if args.dry_run:
+            print("PASS   preflight complete; no files created (--dry-run)")
+            return 0
+
+        stamp = datetime.now(timezone.utc).isoformat(timespec="seconds")
+        report: List[str] = [
+            "PathMiner session review Git report",
+            f"generated_utc: {stamp}",
+            f"session: {session}",
+            f"workspace: {workspace}",
+            f"worktree_root: {top}",
+            f"main_checkout: {main_top}",
+            f"branch: {expected_branch}",
+            f"head: {head}",
+            f"ledger_state: {row.get('state', '')}",
+            f"ledger_integration_status: {row.get('integration_status', '')}",
+            f"handoff_path: {handoff_path.relative_to(top)}",
+            f"handoff_status: {handoff.get('status')}",
+            f"handoff_base_commit: {base_commit}",
+            f"handoff_final_commit: {final_commit}",
+            f"handoff_patch_checksum: {handoff.get('patch_checksum', '')}",
+        ]
+
+        commands = [
+            ("Git version", ["git", "--version"]),
+            ("Clean status", ["git", "status", "--short", "--branch", "--untracked-files=all"]),
+            ("Branch tracking", ["git", "branch", "-vv"]),
+            ("Worktrees", ["git", "worktree", "list", "--porcelain"]),
+            ("Recent graph", ["git", "log", "--graph", "--oneline", "--decorate", "--all", "--max-count=30"]),
+            ("HEAD summary", ["git", "show", "--stat", "--summary", "--format=fuller", "HEAD"]),
+            ("Session commits", ["git", "log", "--oneline", "--decorate", f"{base_commit}..{head}"]),
+            ("Session diff stat", ["git", "diff", "--stat", f"{base_commit}..{head}"]),
+            ("Session paths", ["git", "diff", "--name-status", f"{base_commit}..{head}"]),
+            ("Session diff check", ["git", "diff", "--check", f"{base_commit}..{head}"]),
+            ("Handoff JSON", ["git", "show", f"HEAD:{handoff_path.relative_to(top).as_posix()}"]),
+        ]
+        for title, command in commands:
+            result = _record_command(report, top, title, command)
+            if result.returncode != 0:
+                raise ReviewError(f"{title} failed; no final artifacts were written")
+
+        temporary_bundle = output_dir / f".{bundle_path.name}.tmp.{os.getpid()}"
+        temporary_log = output_dir / f".{log_path.name}.tmp.{os.getpid()}"
+        try:
+            bundle_result = _git(
+                top,
+                "bundle",
+                "create",
+                str(temporary_bundle),
+                f"refs/heads/{expected_branch}",
+                timeout=600,
+            )
+            _require(bundle_result, "creating Git bundle")
+            verify = _record_command(
+                report,
+                top,
+                "Bundle verification",
+                ["git", "bundle", "verify", str(temporary_bundle)],
+                timeout=600,
+            )
+            if verify.returncode != 0:
+                raise ReviewError("generated bundle failed git bundle verify")
+            heads = _record_command(
+                report,
+                top,
+                "Bundle heads",
+                ["git", "bundle", "list-heads", str(temporary_bundle)],
+            )
+            if heads.returncode != 0 or head not in heads.stdout or expected_branch not in heads.stdout:
+                raise ReviewError("generated bundle does not advertise the expected branch tip")
+
+            bundle_digest = _sha256(temporary_bundle)
+            report.extend(
+                [
+                    "",
+                    "===== Artifact checksums =====",
+                    f"bundle_sha256: {bundle_digest}",
+                    f"bundle_bytes: {temporary_bundle.stat().st_size}",
+                    "result: PASS",
+                ]
+            )
+            temporary_log.write_text("\n".join(report) + "\n", encoding="utf-8")
+            os.replace(temporary_bundle, bundle_path)
+            os.replace(temporary_log, log_path)
+        finally:
+            for temporary in (temporary_bundle, temporary_log):
+                if temporary.exists():
+                    temporary.unlink()
+
+        print("PASS   clean committed worktree captured")
+        print(f"PASS   bundle verified ({bundle_path.stat().st_size} bytes)")
+        print(f"SHA256 {bundle_digest}")
+        print("Upload both files for coordinator review.")
+        return 0
+    except (OSError, ReviewError, RuntimeError, ValueError) as exc:
+        print(f"FAIL   {exc}", file=sys.stderr)
+        return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

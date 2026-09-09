@@ -91,10 +91,17 @@ def find_workspace(start: Optional[Path] = None) -> Path:
         if _looks_like_workspace(nested):
             return nested.resolve()
 
+    # Repository-local tools live in <main>/.session_tools. Search from the
+    # script location as a fallback when the command was invoked outside a
+    # worktree. Avoid a fixed parents[n] assumption so this also remains valid
+    # if the tools directory is relocated within the repository later.
     script_path = Path(__file__).resolve()
-    fallback = script_path.parents[2]
-    if _looks_like_workspace(fallback):
-        return fallback
+    for candidate in [script_path.parent] + list(script_path.parents):
+        if _looks_like_workspace(candidate):
+            return candidate
+        nested = candidate / "workspace"
+        if _looks_like_workspace(nested):
+            return nested.resolve()
     raise RuntimeError(
         "Cannot locate the PathMiner execution root. Run this command from the "
         "active worktree root or its workspace/ directory."

@@ -1,0 +1,132 @@
+# Source this file from any PathMiner checkout or linked worktree:
+#
+#   source "$(git rev-parse --path-format=absolute --git-common-dir)/../.session_tools/activate"
+#
+# It activates PathMiner's one repository-root virtual environment and exposes
+# the repository-local session commands. It must be sourced, not executed.
+
+_pathminer_activation_fail () {
+    echo "FAIL  $1" >&2
+    unset -f _pathminer_activation_fail 2> /dev/null
+    return 1
+}
+
+if ! _PATHMINER_GIT_COMMON_DIR="$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null)" ; then
+    _pathminer_activation_fail "not inside a PathMiner Git checkout or linked worktree"
+    return 1
+fi
+
+case "$_PATHMINER_GIT_COMMON_DIR" in
+    */.git)
+        PATHMINER_ROOT="${_PATHMINER_GIT_COMMON_DIR%/.git}"
+        ;;
+    *)
+        _pathminer_activation_fail "unexpected Git common directory: $_PATHMINER_GIT_COMMON_DIR"
+        return 1
+        ;;
+esac
+
+PATHMINER_SESSION_TOOLS_DIR="$PATHMINER_ROOT/.session_tools"
+if [ ! -d "$PATHMINER_SESSION_TOOLS_DIR" ] ; then
+    _pathminer_activation_fail "session-tools directory is missing: $PATHMINER_SESSION_TOOLS_DIR"
+    return 1
+fi
+if [ ! -x "$PATHMINER_ROOT/.venv/bin/python" ] ; then
+    _pathminer_activation_fail "shared virtual environment is missing: $PATHMINER_ROOT/.venv"
+    return 1
+fi
+unset -f _pathminer_activation_fail 2> /dev/null
+
+deactivate () {
+    # Remove PathMiner functions supplied by this activation script.
+    unset -f list 2> /dev/null
+
+    if [ -n "${_OLD_VIRTUAL_PATH:-}" ] ; then
+        PATH="${_OLD_VIRTUAL_PATH:-}"
+        export PATH
+        unset _OLD_VIRTUAL_PATH
+    fi
+    if [ -n "${_OLD_VIRTUAL_PYTHONHOME:-}" ] ; then
+        PYTHONHOME="${_OLD_VIRTUAL_PYTHONHOME:-}"
+        export PYTHONHOME
+        unset _OLD_VIRTUAL_PYTHONHOME
+    fi
+
+    hash -r 2> /dev/null
+
+    if [ -n "${_OLD_VIRTUAL_PS1:-}" ] ; then
+        PS1="${_OLD_VIRTUAL_PS1:-}"
+        export PS1
+        unset _OLD_VIRTUAL_PS1
+    fi
+
+    unset VIRTUAL_ENV
+    unset VIRTUAL_ENV_PROMPT
+    unset PATHMINER_ROOT
+    unset PATHMINER_SESSION_TOOLS_DIR
+    unset _PATHMINER_GIT_COMMON_DIR
+
+    if [ ! "${1:-}" = "nondestructive" ] ; then
+        unset -f deactivate
+    fi
+}
+
+# If another venv is active, restore its original shell state first. The new
+# deactivate function above intentionally replaces the prior implementation.
+if [ -n "${VIRTUAL_ENV:-}" ] ; then
+    if [ -n "${_OLD_VIRTUAL_PATH:-}" ] ; then
+        PATH="${_OLD_VIRTUAL_PATH:-}"
+        export PATH
+        unset _OLD_VIRTUAL_PATH
+    fi
+    if [ -n "${_OLD_VIRTUAL_PYTHONHOME:-}" ] ; then
+        PYTHONHOME="${_OLD_VIRTUAL_PYTHONHOME:-}"
+        export PYTHONHOME
+        unset _OLD_VIRTUAL_PYTHONHOME
+    fi
+    if [ -n "${_OLD_VIRTUAL_PS1:-}" ] ; then
+        PS1="${_OLD_VIRTUAL_PS1:-}"
+        export PS1
+        unset _OLD_VIRTUAL_PS1
+    fi
+fi
+
+export VIRTUAL_ENV="$PATHMINER_ROOT/.venv"
+
+_OLD_VIRTUAL_PATH="$PATH"
+# Keep the venv first, followed immediately by the repository-local commands.
+# This intentionally takes precedence over stale copies in ~/.local/bin.
+PATH="$VIRTUAL_ENV/bin:$PATHMINER_SESSION_TOOLS_DIR:$PATH"
+export PATH
+
+VIRTUAL_ENV_PROMPT='(.venv) '
+export VIRTUAL_ENV_PROMPT
+
+if [ -n "${PYTHONHOME:-}" ] ; then
+    _OLD_VIRTUAL_PYTHONHOME="${PYTHONHOME:-}"
+    unset PYTHONHOME
+fi
+
+if [ -z "${VIRTUAL_ENV_DISABLE_PROMPT:-}" ] ; then
+    _OLD_VIRTUAL_PS1="${PS1:-}"
+    PS1="${VIRTUAL_ENV_PROMPT}${PS1:-}"
+    export PS1
+fi
+
+# List executable PathMiner session commands available in .session_tools.
+list () {
+    local pathminer_tool
+    local pathminer_name
+
+    echo "PathMiner session tools ($PATHMINER_SESSION_TOOLS_DIR):"
+    for pathminer_tool in "$PATHMINER_SESSION_TOOLS_DIR"/* ; do
+        if [ -f "$pathminer_tool" ] && [ -x "$pathminer_tool" ] ; then
+            pathminer_name="${pathminer_tool##*/}"
+            printf '  %s\n' "$pathminer_name"
+        fi
+    done
+}
+
+export PATHMINER_ROOT
+export PATHMINER_SESSION_TOOLS_DIR
+hash -r 2> /dev/null

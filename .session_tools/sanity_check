@@ -10,6 +10,9 @@ import shutil
 import sys
 from pathlib import Path
 
+# Repository-local tool imports must not dirty main with __pycache__ files.
+sys.dont_write_bytecode = True
+
 from pathminer_ai_common import (
     MODEL_IDS,
     find_prompt,
