@@ -1,0 +1,114 @@
+{
+  "session": 6,
+  "ai": "Claude",
+  "model": "claude-sonnet-5",
+  "speed": "not-applicable",
+  "effort": "high",
+  "status": "READY_FOR_REVIEW",
+  "base_commit": "d7f836456098ea9bb1119dadd35cbacb69aaadff",
+  "final_commit": "442947af4c771e5460378b48045a21e6a8fe1e6a",
+  "branch": "ai/session-06-claude-board-source",
+  "patch_checksum": null,
+  "punch_items": [
+    {
+      "id": "ARCH-003",
+      "role": "Closure owner",
+      "status": "closed",
+      "evidence": "pathminer/models/board.py (BoardSource Protocol + domain dataclasses), pathminer/kicad/board.py (parse_board), pathminer/kicad/source.py (FileBoardSource) added. Done-when clause ('the same analysis accepts either adapter without branching') demonstrated: FileBoardSource satisfies the runtime_checkable BoardSource Protocol (isinstance(source, BoardSource) asserted). tests/test_board_source.py: 48 passed (protocol conformance, stable REF.PAD lookup, terminal alias collapsing, named drift diagnostics, real IP5385-board regression). Full suite 372 passed, 0 regressions. Import-boundary guard 48/48 passed."
+    },
+    {
+      "id": "DATA-004",
+      "role": "Contributes resolution slice",
+      "status": "implemented",
+      "evidence": "FileBoardSource.check_drift()/resolve() resolve a REF.PAD against the current board and compare the recorded net name, raising named PadNotFoundError (broken identity) or NetDriftError (net renamed). TestDriftDiagnostics and test_rerouted_board_same_ref_pad_still_resolves_geometry in tests/test_board_source.py demonstrate 'a rerouted board resolves the same paths or produces a named drift error' at the BoardSource layer. Path persistence/schema and GUI/CLI drift policy remain open for a later session."
+    }
+  ],
+  "files": {
+    "added": [
+      "pathminer/models/board.py",
+      "pathminer/kicad/board.py",
+      "pathminer/kicad/source.py",
+      "tests/test_board_source.py",
+      "tests/fixtures/kicad/board_min.kicad_pcb",
+      "tests/fixtures/kicad/board_no_stackup.kicad_pcb",
+      "tests/fixtures/kicad/board_rerouted.kicad_pcb"
+    ],
+    "modified": [],
+    "removed": []
+  },
+  "apis_changed": [
+    "pathminer.models.board: Point, Net, Track, Via, Pad, TerminalAlias, Terminal, Pour, PadDrift (frozen dataclasses); ref_pad_name(); BoardSourceError, PadNotFoundError, NetDriftError; BoardSource (runtime_checkable Protocol) — all new public surface",
+    "pathminer.kicad.board: ParsedBoard (internal aggregate), parse_board(path) -> ParsedBoard — new public surface",
+    "pathminer.kicad.source: FileBoardSource(path) implementing BoardSource, plus .path and .notes (non-protocol diagnostics) — new public surface"
+  ],
+  "schemas_changed": [],
+  "compatibility_consequences": [
+    "No existing API modified; all new surface is additive",
+    "tools/pcb_trace_resistance.py is unchanged; monolith and the new BoardSource stack coexist",
+    "Session 07 (network/builders, ARCH-004) should consume boards only through the BoardSource protocol, not by re-parsing .kicad_pcb directly",
+    "A future LiveKiCadBoardSource must satisfy pathminer.models.board.BoardSource to be a drop-in with FileBoardSource"
+  ],
+  "tests": [
+    {
+      "command": "python3 -m pytest -ra",
+      "exit_code": 0,
+      "result": "324 passed in 1.65s (pre-change baseline)",
+      "runtime_seconds": 1.65
+    },
+    {
+      "command": "python3 -m pytest -ra tests/test_board_source.py",
+      "exit_code": 0,
+      "result": "48 passed in 0.42s",
+      "runtime_seconds": 0.42
+    },
+    {
+      "command": "python3 -m pytest -ra tests/test_import_boundaries.py",
+      "exit_code": 0,
+      "result": "48 passed in 0.17s",
+      "runtime_seconds": 0.17
+    },
+    {
+      "command": "python3 -m pytest -ra",
+      "exit_code": 0,
+      "result": "372 passed in 1.93s (full post-change suite: 324 pre-existing + 48 new; 0 failed, 0 errors, 0 skipped)",
+      "runtime_seconds": 1.93
+    },
+    {
+      "command": "python3 -m pytest -ra tests/test_board_source.py::TestRealBoardRegression",
+      "exit_code": 0,
+      "result": "6 passed (IP5385 real-board parity: 4-layer non-estimated stackup; C53.1 and U9.S REF.PAD resolve; U9.S collapses 3 physical pads into 2 aliases; unknown REF.PAD raises PadNotFoundError; pours present; net_name(3) == 'GNDREF')",
+      "runtime_seconds": null
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "result": "clean (no whitespace errors)",
+      "runtime_seconds": null
+    }
+  ],
+  "decisions": [
+    "Owned scope split as models=pure BoardSource protocol/domain contracts, kicad/board.py=parser, kicad/source.py=FileBoardSource; kicad imports models (only kicad.stackup, a leaf module, flows the other way), verified acyclic and ARCH-002-compliant by running tests/test_import_boundaries.py unchanged",
+    "Pour carries only raw fill polygons; v0.13's principal-axis/aspect/contains() pour analysis is left for the ARCH-004/Session 07 network-builder layer, which will consume Pour.fills via pathminer.core.geometry directly",
+    "Graph-building (build_graph, ladder/mesh) intentionally not extracted; only BoardNets's geometry-harvesting half moved, per the ARCH-004/Session 07 boundary in the refactor plan",
+    "pad() indexes REF.PAD board-wide (not per net) since a REF.PAD name is assumed unique per component; terminals(net) still recomputes per net exactly as v0.13 did, including dedupe=False raw-row behavior",
+    "resolve()/check_drift() raise PadNotFoundError for a missing pad (broken identity) rather than reporting it as drift; only a resolved pad with a changed net name is drift (NetDriftError)",
+    "Added an estimated-stackup fallback (manual_stackup()) inside parse_board when a board has no (stackup) block, per project specification S8.2; this is new coverage for BoardSource.stackup, not a change to pathminer.kicad.stackup itself",
+    "Class-scoped pytest fixtures use @classmethod, matching the Session 05 convention, to avoid the pytest 10 deprecation warning",
+    "Fixture files are committed under tests/fixtures/kicad/ (unlike Session 05's tmp_path-only synthetic content) because this session's owned scope explicitly lists that directory"
+  ],
+  "assumptions": [
+    "pathminer/models/__init__.py's docstring ('imports core and kicad... converts board geometry into a ResistorNetwork') describes the future Session 07 builder modules, not board.py, and is not contradicted by models/board.py importing only kicad.stackup",
+    "pathminer/kicad/__init__.py's docstring ('Provides the BoardSource protocol and FileBoardSource implementation') is read as a package-level responsibility satisfied jointly by kicad/board.py and kicad/source.py, with the protocol's canonical definition in models/board.py",
+    "Pads sharing one REF.PAD name are assumed to share one net; confirmed on both synthetic fixtures and the IP5385 board's U9.S (3 pads, all net 94)",
+    "No committed .kicad_pcb fixture contained an (arc ...) block to copy verbatim (confirmed: the IP5385 board has none), so the arc block in board_min.kicad_pcb was hand-constructed from the parser's expected shape and verified to produce a true arc length greater than the chord"
+  ],
+  "deviations": [],
+  "known_issues": [],
+  "dependent_session_impact": [
+    "Session 07 (Common network, builders and model-selection policy, ARCH-004): should import FileBoardSource and consume it only through the BoardSource protocol; via electrical-span resolution and pour ladder/mesh geometry remain open work for that session using Via.declared_layers and Pour.fills as raw inputs",
+    "Session 08 (compatibility integration): tools/pcb_trace_resistance.py is unchanged and coexists with the new BoardSource stack until that session's facade work",
+    "A future KiCad plugin session (AUTO-004) can add LiveKiCadBoardSource as a sibling implementation of pathminer.models.board.BoardSource without changing any analysis code above kicad/",
+    "DATA-004 full closure (a later session): the resolve/check_drift mechanism exists; persisting/loading REF.PAD-keyed paths and the GUI/CLI drift-handling policy from specification S12.3 remain open"
+  ],
+  "recommended_next_action": "Coordinator: verify diff and handoff, then integrate and open Session 07 (Common network, builders and model-selection policy), which depends on Session 03, Session 04, and this session."
+}
