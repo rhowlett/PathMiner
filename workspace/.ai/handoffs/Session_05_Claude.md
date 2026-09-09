@@ -7,14 +7,15 @@
 - **Status:** READY_FOR_REVIEW
 - **Branch:** ai/session-05-claude-kicad-parser
 - **Base commit:** ec9dba5f4d3cb88ede7caa8045e2011c09b25803
-- **Final commit:** c6c0a3faa371b3af746b24ff50c2a952c394f2ae
+- **Final commit:** 6f652aa742aa3753db855b13c037953b91adeca8
 
 ---
 
 ## Implementation note (written before coding)
 
 Session 05 extracts the KiCad parsing layer from `tools/pcb_trace_resistance.py` v0.13
-into three isolated modules.  The extraction is purely mechanical — no logic was changed.
+into three isolated modules.  The extraction is largely mechanical — no logic was changed
+except for two deliberate improvements recorded under Deviations.
 
 The source code in v0.13 has:
 - `_TOK`, `Node`, `_unquote`, `parse_sexpr` at lines 295–341: a minimal S-expression parser.
@@ -27,19 +28,13 @@ import only stdlib.  `stackup.py` imports from `pathminer.kicad.sexpr`; no other
 intra-package imports.  All three modules pass the existing ARCH-002 import-boundary
 guard (`tests/test_import_boundaries.py`).
 
-One deviation from v0.13 behaviour: `_unquote` in the monolith is a module-level
-function used internally; in `sexpr.py` it is preserved as a module-level function
-(not public API) with the same logic, but we added an explicit leading-whitespace
-guard in `parse_sexpr` that was also present but implicit in v0.13 (the `while toks[pos] != "("` loop).
-The extracted version makes this explicit and guards against `pos >= len(toks)`.
-
 ---
 
 ## Punch-list status
 
 | ID | Role | Status | Evidence |
 |---|---|---|---|
-| ARCH-003 | Contributes capability slice (parser foundation) | implemented | `pathminer/kicad/sexpr.py`, `pathminer/kicad/stackup.py`, `pathminer/kicad/prefs.py` added; 146 tests pass |
+| ARCH-003 | Contributes capability slice (parser foundation) | implemented | `pathminer/kicad/sexpr.py`, `pathminer/kicad/stackup.py`, `pathminer/kicad/prefs.py` added; 150 focused tests pass; full suite 324 passed |
 
 No whole punch-list item was closed; Session 05 delivers a named capability slice toward ARCH-003 as documented in the session prompt.
 
@@ -51,13 +46,14 @@ No whole punch-list item was closed; Session 05 delivers a named capability slic
 - `pathminer/kicad/sexpr.py` — S-expression parser (Node, parse_sexpr)
 - `pathminer/kicad/stackup.py` — StackLayer, Stackup, load_stackup, manual_stackup
 - `pathminer/kicad/prefs.py` — KICAD_VERSIONS, kicad_pref_dirs, kicad_recent_projects, board_for_project, project_for_board
-- `tests/test_kicad_sexpr.py` — 46 tests (positive, boundary, failure, parity regression)
-- `tests/test_stackup.py` — 60 tests (StackLayer, Stackup, load_stackup, manual_stackup, parity)
-- `tests/test_prefs.py` — 30 tests (kicad_pref_dirs, kicad_recent_projects, board_for_project, project_for_board)
-- `tests/fixtures/kicad/minimal_with_stackup.kicad_pcb` — 4-layer board with complete stackup block
-- `tests/fixtures/kicad/no_stackup.kicad_pcb` — board with (setup) but no (stackup) block
-- `tests/fixtures/kicad/not_a_pcb.kicad_pcb` — kicad_sch root (wrong file type)
-- `tests/fixtures/kicad/single_copper.kicad_pcb` — 1-copper-layer board
+- `tests/test_kicad_sexpr.py` — 46 test functions, 46 collected (positive, boundary, failure, parity regression)
+- `tests/test_stackup.py` — 62 test functions, 74 collected (StackLayer, Stackup, load_stackup, manual_stackup, parity; parametrised tests account for the difference)
+- `tests/test_prefs.py` — 30 test functions, 30 collected (kicad_pref_dirs, kicad_recent_projects, board_for_project, project_for_board)
+
+Synthetic .kicad_pcb fixture content is generated under pytest `tmp_path` inside
+`test_stackup.py`; no committed fixture files are needed.  The canonical IP5385
+reference board (`ai_reference/kicad_project_example/...`) remains the real-board
+parity fixture and is already present in the repository.
 
 ### Modified
 - None
@@ -106,21 +102,12 @@ Exit code: 0
 Result: 174 passed in 1.02s
 ```
 
-### Session 05 target tests
+### Session 05 focused tests
 
 ```
 Command: python3 -m pytest -q tests/test_kicad_sexpr.py tests/test_stackup.py tests/test_prefs.py
 Exit code: 0
-Result: 146 passed in 0.50s
-```
-
-### Full regression suite (post-change)
-
-```
-Command: python3 -m pytest -v
-Exit code: 0
-Result: 320 passed in 1.64s
-Runtime: 1.64s
+Result: 150 passed in 0.61s
 ```
 
 ### Import boundary check
@@ -128,7 +115,31 @@ Runtime: 1.64s
 ```
 Command: python3 -m pytest -v tests/test_import_boundaries.py
 Exit code: 0
-Result: 48 passed in 0.13s
+Result: 48 passed in 0.33s
+```
+
+### Full regression suite (post-change)
+
+```
+Command: python3 -m pytest -v
+Exit code: 0
+Result: 324 passed in 3.75s
+```
+
+### Canonical IP5385 parity regression
+
+```
+Command: python3 -m pytest -v tests/test_stackup.py::TestStackupParity
+Exit code: 0
+Result: 12 passed in 0.16s
+```
+
+### git diff --check
+
+```
+Command: git diff --check
+Exit code: 0
+Result: clean (no whitespace errors)
 ```
 
 No unavailable fixtures or dependencies.  All commands executed and results recorded directly.
@@ -158,8 +169,8 @@ Note: `test_resistance.py` (Session 03) references inner layers of 0.070mm in it
 hand-derived fixture (GEO_ON/GEO_OFF).  That fixture was built from a v0.13 reference
 stackup separate from the IP5385 board.  The IP5385 board itself has 0.035mm inner layers.
 This is not a contradiction; the Session 03 fixture used a different reference geometry.
-The `test_kicad_sexpr.py` minimal fixture (`minimal_with_stackup.kicad_pcb`) uses
-0.070mm inner layers to match the Session 03 GEO reference for future integration tests.
+The `_FOUR_LAYER_PCB` synthetic fixture in `test_stackup.py` uses 0.070mm inner layers
+to match the Session 03 GEO reference for future integration tests.
 
 ---
 
@@ -169,35 +180,46 @@ The `test_kicad_sexpr.py` minimal fixture (`minimal_with_stackup.kicad_pcb`) use
    The extracted modules are standalone copies, not imports from the monolith.
 2. **`stackup.py` imports `sexpr.py`.** The dependency direction (stackup → sexpr → stdlib)
    is within the kicad/ package boundary and complies with ARCH-002.
-3. **`_unquote` is module-private.** Named with a leading underscore; not part of the
+3. **`_unquote` and `_TOK` are module-private** (leading underscore); not part of the
    public surface.  Same convention as v0.13.
-4. **`_TOK` is module-private.** Named with a leading underscore; the compiled regex is
-   kept at module level for efficiency, same as v0.13.
-5. **Class-scoped fixtures use `@classmethod`.** The pytest 10 deprecation warning for
+4. **Class-scoped fixtures use `@classmethod`.** The pytest 10 deprecation warning for
    class-scoped fixtures as instance methods was addressed by adding `@classmethod`.
-6. **Minimal fixtures over real-board fixtures.** The four minimal .kicad_pcb fixtures
-   cover malformed and supported inputs without bundling a full board's copper/via data.
-   The real IP5385 board is used only for the parity regression (already present in repo).
+5. **Synthetic fixtures under tmp_path.** The four minimal .kicad_pcb fixture contents
+   are defined as module-level string constants in `test_stackup.py` and written to
+   `tmp_path` at test time.  No committed fixture files were added (outside owned scope).
+6. **`harvest_vias()` not extracted.** It is a board-scanning utility belonging to the
+   future `board.py` (board adapter) scope, not the pure parser scope.
+
+---
+
+## Deviations
+
+1. **`manual_stackup` raises `ValueError` for `n_copper < 1`.** In v0.13 passing
+   `n_copper=0` silently produced an empty layer list; `n_copper=-1` produced a
+   `range(-1)` empty loop with meaningless dielectric calculation.  The extracted
+   version raises `ValueError("n_copper must be >= 1, got {n_copper}")` instead.
+   This is a deliberate improvement; the v0.13 silent behaviour was a bug, not an
+   intentional contract.  Tests `test_zero_copper_raises_value_error` and
+   `test_negative_copper_raises_value_error` cover the new behaviour.
+
+2. **No deviation for single-layer stackup (`n_copper=1`).** v0.13 handled it
+   correctly (the condition `i == 0` wins before `i == n_copper - 1`); so does this
+   module.  `test_single_layer_board` and `test_single_layer_named_fcu` confirm parity.
 
 ---
 
 ## Assumptions
 
 1. The `pathminer/kicad/` directory and `__init__.py` were created by a prior session (confirmed present at ec9dba5).
-2. The session is Wave W2-C; Session 02 is the prerequisite (confirmed: Session_02_Claude.md/json in handoffs/).
-3. `harvest_vias()` in v0.13 (line 457) is NOT extracted here; it is a board-scanning utility that is part of the board adapter (future `board.py`) scope, not the pure parser scope.
-
----
-
-## Deviations
-
-None.  The session prompt's owned write scope was followed exactly.
+2. Session 02 is the prerequisite session (confirmed: Session_02_Claude.md/json present in handoffs/).
+3. IP5385 reference board at ai_reference/kicad_project_example/Ref_PowerBank_injoinic_IP5385_v0.8.kicad_pcb has 0.035mm inner layers (confirmed by load_stackup inspection).
+4. Session 03 test_resistance.py GEO_ON/GEO_OFF fixture uses 0.070mm inner layers from a different reference stackup, not the IP5385 board — this is not a contradiction.
 
 ---
 
 ## Known issues
 
-None.  All 320 tests pass.  No forbidden imports introduced.
+None.  All 324 tests pass.  No forbidden imports introduced.  git diff --check clean.
 
 ---
 
@@ -205,7 +227,7 @@ None.  All 320 tests pass.  No forbidden imports introduced.
 
 - **Session 06 (board.py / FileBoardSource):** will import `pathminer.kicad.sexpr` and `pathminer.kicad.stackup` directly.  The public API surface is stable.
 - **Sessions 07+:** any session that needs S-expression parsing, stackup loading, or KiCad prefs discovery can import from these modules instead of the monolith.
-- **test_resistance.py (Session 03):** the note about inner-layer thickness (0.070mm fixture vs 0.035mm real board) is documented above.  No change to Session 03 files; the Session 03 fixture is a hand-derived geometry, not loaded from the board.
+- **test_resistance.py (Session 03):** not affected; its hand-derived GEO fixture remains valid independently of this extraction.
 
 ---
 
