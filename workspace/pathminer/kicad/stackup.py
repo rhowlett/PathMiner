@@ -249,7 +249,7 @@ def load_stackup(path: str) -> Stackup:
     stack = setup.get("stackup") if setup else None
     if stack is None:
         raise ValueError(
-            "no (stackup) block in this board — "
+            "no (stackup) block in this board - "
             "open Board Setup > Physical Stackup and save"
         )
 
@@ -282,7 +282,7 @@ def manual_stackup(
     Parameters
     ----------
     n_copper:
-        Number of copper layers (must be ≥ 1).
+        Number of copper layers.  Must be ≥ 1; raises ``ValueError`` otherwise.
     board_mm:
         Target board thickness in mm.
     outer_oz:
@@ -294,7 +294,14 @@ def manual_stackup(
     -------
     Stackup
         Manual stackup with ``source="<manual>"`` and ``estimated=True``.
+
+    Raises
+    ------
+    ValueError
+        If *n_copper* is less than 1.
     """
+    if n_copper < 1:
+        raise ValueError(f"n_copper must be >= 1, got {n_copper}")
     layers: list[StackLayer] = []
     cu_mm = []
     for i in range(n_copper):

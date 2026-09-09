@@ -1,8 +1,13 @@
-# v0.1
+# v0.2
 """Tests for pathminer.kicad.stackup.
 
 Session 05 — KiCad syntax, stackup and preferences extraction.
 Punch-list contribution: ARCH-003 (parser foundation capability slice).
+
+Synthetic .kicad_pcb fixtures are created under pytest tmp_path rather than
+committed fixture files (which are outside this session's owned write scope).
+The only real board file used is the canonical IP5385 parity reference,
+already present in the repository at ai_reference/.
 
 Covers:
   - StackLayer.kind classification
@@ -10,15 +15,21 @@ Covers:
   - Stackup.copper filter
   - Stackup.core_thickness_mm (excludes mask/silk/paste)
   - Stackup.geometry — z coordinates, plating growth (D8), index ordering
-  - load_stackup — positive, no-stackup error, wrong-root error
-  - manual_stackup — distribution, naming, estimated flag
+  - load_stackup — positive, no-stackup error, wrong-root error, OSError
+  - manual_stackup — distribution, naming, estimated flag, n_copper validation
   - Parity regression: Stackup.geometry() matches v0.13 output on the
     reference board (stackup parity record, required deliverable)
+
+Deviations from v0.13 recorded here:
+  - manual_stackup raises ValueError for n_copper < 1 (v0.13 silently
+    produced an empty layer list; this is a deliberate improvement).
+  - No deviation for n_copper == 1: v0.13 handled it; so does this module.
 """
 
 from __future__ import annotations
 
 import os
+import textwrap
 
 import pytest
 
@@ -31,14 +42,8 @@ from pathminer.kicad.stackup import (
 )
 
 # ---------------------------------------------------------------------------
-# Fixture paths
+# Reference board path (canonical IP5385 parity fixture)
 # ---------------------------------------------------------------------------
-
-FIXTURES = os.path.join(os.path.dirname(__file__), "fixtures", "kicad")
-MINIMAL_WITH_STACKUP = os.path.join(FIXTURES, "minimal_with_stackup.kicad_pcb")
-NO_STACKUP = os.path.join(FIXTURES, "no_stackup.kicad_pcb")
-NOT_A_PCB = os.path.join(FIXTURES, "not_a_pcb.kicad_pcb")
-SINGLE_COPPER = os.path.join(FIXTURES, "single_copper.kicad_pcb")
 
 REFERENCE_BOARD = os.path.normpath(
     os.path.join(
@@ -48,6 +53,112 @@ REFERENCE_BOARD = os.path.normpath(
         "Ref_PowerBank_injoinic_IP5385_v0.8.kicad_pcb",
     )
 )
+
+
+# ---------------------------------------------------------------------------
+# Synthetic .kicad_pcb content helpers
+# ---------------------------------------------------------------------------
+
+_FOUR_LAYER_PCB = textwrap.dedent("""\
+    (kicad_pcb
+        (version 20241229)
+        (generator "pcbnew")
+        (general
+            (thickness 1.6)
+        )
+        (setup
+            (stackup
+                (layer "F.Mask"
+                    (type "Top Solder Mask")
+                    (thickness 0.01)
+                )
+                (layer "F.Cu"
+                    (type "copper")
+                    (thickness 0.035)
+                )
+                (layer "dielectric 1"
+                    (type "core")
+                    (thickness 0.1)
+                    (material "FR4")
+                    (epsilon_r 4.5)
+                )
+                (layer "In1.Cu"
+                    (type "copper")
+                    (thickness 0.07)
+                )
+                (layer "dielectric 2"
+                    (type "core")
+                    (thickness 1.24)
+                    (material "FR4")
+                    (epsilon_r 4.5)
+                )
+                (layer "In2.Cu"
+                    (type "copper")
+                    (thickness 0.07)
+                )
+                (layer "dielectric 3"
+                    (type "core")
+                    (thickness 0.1)
+                    (material "FR4")
+                    (epsilon_r 4.5)
+                )
+                (layer "B.Cu"
+                    (type "copper")
+                    (thickness 0.035)
+                )
+                (layer "B.Mask"
+                    (type "Bottom Solder Mask")
+                    (thickness 0.01)
+                )
+            )
+        )
+    )
+""")
+
+_NO_STACKUP_PCB = textwrap.dedent("""\
+    (kicad_pcb
+        (version 20241229)
+        (generator "pcbnew")
+        (general
+            (thickness 1.6)
+        )
+        (setup
+            (pad_to_mask_clearance 0)
+        )
+    )
+""")
+
+_NOT_A_PCB = textwrap.dedent("""\
+    (kicad_sch
+        (version 20241229)
+        (generator "eeschema")
+    )
+""")
+
+_SINGLE_COPPER_PCB = textwrap.dedent("""\
+    (kicad_pcb
+        (version 20241229)
+        (generator "pcbnew")
+        (general
+            (thickness 0.8)
+        )
+        (setup
+            (stackup
+                (layer "F.Cu"
+                    (type "copper")
+                    (thickness 0.035)
+                )
+            )
+        )
+    )
+""")
+
+
+def _write(tmp_path, name: str, content: str) -> str:
+    """Write *content* to *name* inside *tmp_path* and return the path."""
+    p = tmp_path / name
+    p.write_text(content, encoding="utf-8")
+    return str(p)
 
 
 # ---------------------------------------------------------------------------
@@ -61,8 +172,7 @@ class TestStackLayerKind:
         "type_raw, expected_kind",
         [
             ("copper", "copper"),
-            ("Copper", "copper"),      # case-insensitive via .lower()
-            ("copper foil", "copper"), # 'copper' is in COPPER_TYPES literally; only exact match
+            ("Copper", "copper"),
             ("core", "dielectric"),
             ("prepreg", "dielectric"),
             ("soldermask", "mask"),
@@ -77,15 +187,14 @@ class TestStackLayerKind:
         ],
     )
     def test_kind_classification(self, type_raw, expected_kind):
-        # Note: "copper foil" is NOT in _COPPER_TYPES (which is {"copper"})
-        # so it falls through to "dielectric".  Correct; only exact "copper" is
-        # recognised as copper.
         layer = StackLayer("F.Cu", type_raw, 0.035)
-        if type_raw.lower() == "copper foil":
-            # Not a copper type — classified as dielectric
-            assert layer.kind == "dielectric"
-        else:
-            assert layer.kind == expected_kind
+        assert layer.kind == expected_kind
+
+    def test_copper_foil_string_is_not_copper_kind(self):
+        # Only the exact string "copper" (case-insensitive) is in _COPPER_TYPES.
+        # "copper foil" does not match, so it falls through to "dielectric".
+        layer = StackLayer("F.Cu", "copper foil", 0.035)
+        assert layer.kind == "dielectric"
 
 
 class TestStackLayerDirty:
@@ -108,10 +217,11 @@ class TestStackLayerDirty:
 # Stackup property methods
 # ---------------------------------------------------------------------------
 
-def _make_four_layer_stackup(plating=False):
-    """Build a 4-layer stackup matching test_resistance.py's reference:
+def _make_four_layer_stackup() -> Stackup:
+    """Build a 4-layer stackup matching the test_resistance.py reference geometry:
     F.Cu 0.035 / diel 0.100 / In1.Cu 0.070 / diel 1.240 /
-    In2.Cu 0.070 / diel 0.100 / B.Cu 0.035 + F.Mask 0.010 + B.Mask 0.010
+    In2.Cu 0.070 / diel 0.100 / B.Cu 0.035
+    plus F.Mask 0.010 and B.Mask 0.010.
     """
     layers = [
         StackLayer("F.Mask", "soldermask", 0.010),
@@ -182,18 +292,14 @@ class TestStackupGeometry:
     def test_plating_outer_adds_increases_outer_finished(self):
         geo_on = self.s.geometry(plating_um=25.0, outer_adds=True)
         geo_off = self.s.geometry(plating_um=25.0, outer_adds=False)
-        # Outer layers should be thicker with outer_adds=True
         assert geo_on[0]["finished_mm"] > geo_off[0]["finished_mm"]
         assert geo_on[3]["finished_mm"] > geo_off[3]["finished_mm"]
-        # Inner layers unchanged
         assert geo_on[1]["finished_mm"] == pytest.approx(geo_off[1]["finished_mm"])
         assert geo_on[2]["finished_mm"] == pytest.approx(geo_off[2]["finished_mm"])
 
     def test_plating_adds_25um(self):
         geo = self.s.geometry(plating_um=25.0, outer_adds=True)
-        # F.Cu: foil=0.035, finished should be 0.035 + 0.025 = 0.060
         assert geo[0]["finished_mm"] == pytest.approx(0.060)
-        # B.Cu same
         assert geo[3]["finished_mm"] == pytest.approx(0.060)
 
     def test_z_ctr_is_midpoint(self):
@@ -212,13 +318,11 @@ class TestStackupGeometry:
         for i in range(len(geo) - 1):
             top_bot = geo[i]["z_top_mm"] + geo[i]["finished_mm"]
             next_top = geo[i + 1]["z_top_mm"]
-            # dielectric is between them; next top must be greater
             assert next_top >= top_bot - 1e-12
 
     def test_fcu_z_top_no_plating(self):
         """F.Cu z_top_mm == 0.0 when mask is excluded from z-walk (mask not copper/dielectric)."""
         geo = self.s.geometry(plating_um=0.0, outer_adds=False)
-        # F.Mask (0.010) is skipped because kind == "mask"; z-walk starts at F.Cu
         assert geo[0]["z_top_mm"] == pytest.approx(0.0)
 
 
@@ -229,7 +333,6 @@ class TestStackupGeometryOuter:
         s = _make_four_layer_stackup()
         geo_off = s.geometry(plating_um=25.0, outer_adds=False)
         geo_on = s.geometry(plating_um=25.0, outer_adds=True)
-        # F.Cu grows upward → z_top_mm decreases (negative direction)
         assert geo_on[0]["z_top_mm"] < geo_off[0]["z_top_mm"]
 
     def test_bcu_z_top_unchanged_with_plating(self):
@@ -241,72 +344,96 @@ class TestStackupGeometryOuter:
 
 
 # ---------------------------------------------------------------------------
-# load_stackup
+# load_stackup — positive (synthetic tmp_path fixtures)
 # ---------------------------------------------------------------------------
 
 class TestLoadStackupPositive:
-    def test_returns_stackup_instance(self):
-        s = load_stackup(MINIMAL_WITH_STACKUP)
+    def test_returns_stackup_instance(self, tmp_path):
+        path = _write(tmp_path, "board.kicad_pcb", _FOUR_LAYER_PCB)
+        s = load_stackup(path)
         assert isinstance(s, Stackup)
 
-    def test_source_is_path(self):
-        s = load_stackup(MINIMAL_WITH_STACKUP)
-        assert s.source == MINIMAL_WITH_STACKUP
+    def test_source_is_path(self, tmp_path):
+        path = _write(tmp_path, "board.kicad_pcb", _FOUR_LAYER_PCB)
+        s = load_stackup(path)
+        assert s.source == path
 
-    def test_general_thickness_read(self):
-        s = load_stackup(MINIMAL_WITH_STACKUP)
+    def test_general_thickness_read(self, tmp_path):
+        path = _write(tmp_path, "board.kicad_pcb", _FOUR_LAYER_PCB)
+        s = load_stackup(path)
         assert s.general_thickness == pytest.approx(1.6)
 
-    def test_copper_layers_count(self):
-        s = load_stackup(MINIMAL_WITH_STACKUP)
-        # Fixture has F.Cu, In1.Cu, In2.Cu, B.Cu
+    def test_copper_layers_count(self, tmp_path):
+        path = _write(tmp_path, "board.kicad_pcb", _FOUR_LAYER_PCB)
+        s = load_stackup(path)
         assert len(s.copper) == 4
 
-    def test_copper_layer_names(self):
-        s = load_stackup(MINIMAL_WITH_STACKUP)
+    def test_copper_layer_names(self, tmp_path):
+        path = _write(tmp_path, "board.kicad_pcb", _FOUR_LAYER_PCB)
+        s = load_stackup(path)
         names = [l.name for l in s.copper]
         assert names == ["F.Cu", "In1.Cu", "In2.Cu", "B.Cu"]
 
-    def test_copper_thickness_read(self):
-        s = load_stackup(MINIMAL_WITH_STACKUP)
+    def test_copper_thickness_read(self, tmp_path):
+        path = _write(tmp_path, "board.kicad_pcb", _FOUR_LAYER_PCB)
+        s = load_stackup(path)
         fcu = s.copper[0]
         assert fcu.base_mm == pytest.approx(0.035)
         assert fcu.user_mm == pytest.approx(0.035)
 
-    def test_inner_layers_thickness(self):
-        s = load_stackup(MINIMAL_WITH_STACKUP)
-        # Fixture has In1.Cu and In2.Cu at 0.07mm
+    def test_inner_layers_thickness(self, tmp_path):
+        path = _write(tmp_path, "board.kicad_pcb", _FOUR_LAYER_PCB)
+        s = load_stackup(path)
         assert s.copper[1].base_mm == pytest.approx(0.07)
         assert s.copper[2].base_mm == pytest.approx(0.07)
 
-    def test_dielectric_material_read(self):
-        s = load_stackup(MINIMAL_WITH_STACKUP)
+    def test_dielectric_material_read(self, tmp_path):
+        path = _write(tmp_path, "board.kicad_pcb", _FOUR_LAYER_PCB)
+        s = load_stackup(path)
         diel = [l for l in s.layers if l.kind == "dielectric"]
         assert all(l.material == "FR4" for l in diel)
 
-    def test_dielectric_epsilon_r_read(self):
-        s = load_stackup(MINIMAL_WITH_STACKUP)
+    def test_dielectric_epsilon_r_read(self, tmp_path):
+        path = _write(tmp_path, "board.kicad_pcb", _FOUR_LAYER_PCB)
+        s = load_stackup(path)
         diel = [l for l in s.layers if l.kind == "dielectric"]
         assert all(l.epsilon_r == pytest.approx(4.5) for l in diel)
 
-    def test_not_estimated(self):
-        s = load_stackup(MINIMAL_WITH_STACKUP)
+    def test_not_estimated(self, tmp_path):
+        path = _write(tmp_path, "board.kicad_pcb", _FOUR_LAYER_PCB)
+        s = load_stackup(path)
         assert s.estimated is False
 
-    def test_single_copper_layer(self):
-        s = load_stackup(SINGLE_COPPER)
+    def test_single_copper_layer(self, tmp_path):
+        path = _write(tmp_path, "single.kicad_pcb", _SINGLE_COPPER_PCB)
+        s = load_stackup(path)
         assert len(s.copper) == 1
         assert s.copper[0].name == "F.Cu"
 
 
-class TestLoadStackupFailure:
-    def test_no_stackup_block_raises_value_error(self):
-        with pytest.raises(ValueError, match="no \\(stackup\\) block"):
-            load_stackup(NO_STACKUP)
+# ---------------------------------------------------------------------------
+# load_stackup — failure (synthetic tmp_path fixtures)
+# ---------------------------------------------------------------------------
 
-    def test_wrong_root_raises_value_error(self):
+class TestLoadStackupFailure:
+    def test_no_stackup_block_raises_value_error(self, tmp_path):
+        path = _write(tmp_path, "no_stackup.kicad_pcb", _NO_STACKUP_PCB)
+        with pytest.raises(ValueError, match="no \\(stackup\\) block"):
+            load_stackup(path)
+
+    def test_no_stackup_error_message_exact(self, tmp_path):
+        """Error message must match the v0.13 text exactly (hyphen, not em dash)."""
+        path = _write(tmp_path, "no_stackup.kicad_pcb", _NO_STACKUP_PCB)
+        with pytest.raises(ValueError) as exc_info:
+            load_stackup(path)
+        msg = str(exc_info.value)
+        assert " - " in msg, f"Expected hyphen in message, got: {msg!r}"
+        assert "open Board Setup" in msg
+
+    def test_wrong_root_raises_value_error(self, tmp_path):
+        path = _write(tmp_path, "not_a_pcb.kicad_pcb", _NOT_A_PCB)
         with pytest.raises(ValueError, match="not a .kicad_pcb"):
-            load_stackup(NOT_A_PCB)
+            load_stackup(path)
 
     def test_missing_file_raises_oserror(self):
         with pytest.raises(OSError):
@@ -348,6 +475,14 @@ class TestManualStackup:
     def test_single_layer_board(self):
         s = manual_stackup(n_copper=1)
         assert len(s.copper) == 1
+        assert s.copper[0].name == "F.Cu"
+
+    def test_single_layer_named_fcu(self):
+        """Single-layer board: only layer is F.Cu, not B.Cu.
+        v0.13 had: nm = 'F.Cu' if i==0 else ('B.Cu' if i==n_copper-1 else ...).
+        For n_copper=1, i==0 and i==n_copper-1 both, so nm='F.Cu' wins."""
+        s = manual_stackup(n_copper=1)
+        assert s.copper[0].name == "F.Cu"
 
     def test_outer_oz_thickness(self):
         s = manual_stackup(n_copper=4, outer_oz=2.0)
@@ -381,6 +516,16 @@ class TestManualStackup:
         assert cu[2].name == "B.Cu"
         assert cu[1].name == "In1.Cu"
 
+    # Boundary: n_copper validation (deliberate deviation from v0.13 which
+    # silently produced an empty stackup for n_copper < 1)
+    def test_zero_copper_raises_value_error(self):
+        with pytest.raises(ValueError, match="n_copper must be >= 1"):
+            manual_stackup(n_copper=0)
+
+    def test_negative_copper_raises_value_error(self):
+        with pytest.raises(ValueError, match="n_copper must be >= 1"):
+            manual_stackup(n_copper=-1)
+
 
 # ---------------------------------------------------------------------------
 # Stackup parity regression: load_stackup vs. v0.13 on the reference board
@@ -391,9 +536,9 @@ class TestStackupParity:
 
     This is the STACKUP PARITY RECORD required by Session 05.  The reference
     values were produced by running the original v0.13 parse_sexpr + Stackup
-    classes (which are byte-identical to the extracted versions) against the
-    IP5385 reference board.  A future integration test should assert that any
-    refactored geometry helper also passes this check.
+    classes (which are byte-identical to the extracted versions modulo the
+    deliberate n_copper and error-message deviations) against the IP5385
+    reference board.
 
     Reference board stackup (all copper layers 0.035mm foil):
         F.Cu  0.035mm copper
@@ -430,7 +575,6 @@ class TestStackupParity:
 
     def test_geometry_fcu_finished_mm_with_25um_plating(self, stackup):
         geo = stackup.geometry(plating_um=25.0, outer_adds=True)
-        # F.Cu: 0.035 foil + 0.025 plating = 0.060
         assert geo[0]["finished_mm"] == pytest.approx(0.060)
 
     def test_geometry_bcu_finished_mm_with_25um_plating(self, stackup):
