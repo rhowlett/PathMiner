@@ -1,0 +1,15 @@
+(kicad_pcb
+	(version 20241229)
+	(generator "pcbnew")
+	(general
+		(thickness 0.8)
+	)
+	(setup
+		(stackup
+			(layer "F.Cu"
+				(type "copper")
+				(thickness 0.035)
+			)
+		)
+	)
+)
