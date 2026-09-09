@@ -273,7 +273,11 @@ def main() -> int:
         for title, command in commands:
             result = _record_command(report, top, title, command)
             if result.returncode != 0:
-                raise ReviewError(f"{title} failed; no final artifacts were written")
+                detail = (result.stderr or result.stdout).strip()
+                message = f"{title} failed; no final artifacts were written"
+                if detail:
+                    message += f":\n{detail}"
+                raise ReviewError(message)
 
         temporary_bundle = output_dir / f".{bundle_path.name}.tmp.{os.getpid()}"
         temporary_log = output_dir / f".{log_path.name}.tmp.{os.getpid()}"
