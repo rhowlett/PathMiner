@@ -11,12 +11,16 @@ Covers:
     diagnostics, stackup-absent fallback, malformed-file failure.
   - pathminer.kicad.source.FileBoardSource: BoardSource protocol
     conformance, per-net filtering, stable REF.PAD lookup (`pad`),
-    terminal dedupe/aliasing (`terminals`), and drift diagnostics
-    (`check_drift` / `resolve`, `PadNotFoundError`, `NetDriftError`).
+    terminal dedupe/aliasing (`terminals`), cross-net ambiguous-identity
+    rejection (`AmbiguousPadError`), and drift diagnostics (`check_drift`
+    / `resolve`, `PadNotFoundError`, `NetDriftError`).
   - pathminer.models.board: `ref_pad_name` naming rule, dataclass
     equality/immutability.
   - Real-board regression: the canonical IP5385 reference board parses
-    through FileBoardSource and reproduces known REF.PAD/net/alias facts.
+    through FileBoardSource and reproduces known REF.PAD/net/alias facts
+    -- including a genuine cross-net REF.PAD collision the board itself
+    contains (`LED1.1`), confirming the ambiguous-identity guard against
+    production data, not only a synthetic fixture.
 
 Synthetic fixtures live under tests/fixtures/kicad/ (in this session's
 owned write scope, unlike the tmp_path-only fixtures of Session 05):
@@ -31,6 +35,11 @@ owned write scope, unlike the tmp_path-only fixtures of Session 05):
                                  "SIG_A" -> "SIG_A_MOVED", REF.PAD
                                  identities unchanged, to exercise net
                                  drift.
+  - board_ambiguous_pad.kicad_pcb — one footprint "J1" whose two physical
+                                 pads share one REF.PAD name ("J1.SIG")
+                                 but sit on two different nets, to
+                                 exercise cross-net ambiguous-identity
+                                 rejection.
 """
 
 from __future__ import annotations
@@ -42,6 +51,7 @@ import pytest
 from pathminer.kicad.board import ParsedBoard, parse_board
 from pathminer.kicad.source import FileBoardSource
 from pathminer.models.board import (
+    AmbiguousPadError,
     BoardSource,
     Net,
     NetDriftError,
@@ -57,6 +67,7 @@ FIXTURES = os.path.join(os.path.dirname(__file__), "fixtures", "kicad")
 BOARD_MIN = os.path.join(FIXTURES, "board_min.kicad_pcb")
 BOARD_NO_STACKUP = os.path.join(FIXTURES, "board_no_stackup.kicad_pcb")
 BOARD_REROUTED = os.path.join(FIXTURES, "board_rerouted.kicad_pcb")
+BOARD_AMBIGUOUS_PAD = os.path.join(FIXTURES, "board_ambiguous_pad.kicad_pcb")
 
 REFERENCE_BOARD = os.path.normpath(
     os.path.join(
@@ -284,6 +295,61 @@ class TestStableTerminalLookup:
 
 
 # ---------------------------------------------------------------------------
+# FileBoardSource — cross-net ambiguous-identity rejection
+# ---------------------------------------------------------------------------
+
+
+class TestAmbiguousPadIdentity:
+    """J1 has two physical pads both named "SIG" via pinfunction, on two
+    different nets. Before this fix, `_build_pad_index` silently collapsed
+    them into one Terminal keyed on whichever net was processed first --
+    the second pad's real net was lost. This must instead be a named,
+    reported failure."""
+
+    @classmethod
+    @pytest.fixture(scope="class")
+    def source(cls) -> FileBoardSource:
+        return FileBoardSource(BOARD_AMBIGUOUS_PAD)
+
+    def test_construction_does_not_fail(self, source):
+        # An ambiguous name elsewhere on the board must not brick lookup
+        # of every other terminal (see the real-board LED1.1 case in
+        # TestRealBoardRegression).
+        assert isinstance(source, BoardSource)
+
+    def test_ambiguous_pad_raises_named_error(self, source):
+        with pytest.raises(AmbiguousPadError):
+            source.pad("J1.SIG")
+
+    def test_ambiguous_pad_error_reports_both_nets(self, source):
+        with pytest.raises(AmbiguousPadError) as excinfo:
+            source.pad("J1.SIG")
+        assert excinfo.value.ref_pad == "J1.SIG"
+        assert excinfo.value.nets == (1, 2)
+
+    def test_ambiguous_pad_is_not_silently_reported_as_one_net(self, source):
+        # Regression guard for the exact reported bug: the ambiguous name
+        # must never resolve to a Terminal at all (net 1 or net 2 would
+        # both be silently wrong for the other pad).
+        try:
+            source.pad("J1.SIG")
+        except AmbiguousPadError:
+            pass
+        else:
+            pytest.fail("J1.SIG resolved to a single net instead of raising")
+
+    def test_check_drift_on_ambiguous_pad_raises_named_error(self, source):
+        # check_drift/resolve both call pad() first, so they inherit the
+        # same named failure rather than reporting a misleading drift.
+        with pytest.raises(AmbiguousPadError):
+            source.check_drift("J1.SIG", "SIG_A")
+
+    def test_resolve_on_ambiguous_pad_raises_named_error(self, source):
+        with pytest.raises(AmbiguousPadError):
+            source.resolve("J1.SIG")
+
+
+# ---------------------------------------------------------------------------
 # FileBoardSource — drift diagnostics (S12.3, DATA-004 resolution slice)
 # ---------------------------------------------------------------------------
 
@@ -374,6 +440,25 @@ class TestRealBoardRegression:
     def test_unknown_ref_pad_raises_named_error(self, source):
         with pytest.raises(PadNotFoundError):
             source.pad("ZZ999.1")
+
+    def test_real_board_ambiguous_pad_raises_named_error(self, source):
+        # The IP5385 board's own LED1 footprint gives all five of its
+        # physically distinct, differently-netted pads the same generic
+        # pin function "1", so they all collapse to the REF.PAD name
+        # "LED1.1". This is the exact bug class the synthetic
+        # board_ambiguous_pad.kicad_pcb fixture reproduces
+        # (TestAmbiguousPadIdentity) -- confirmed here against real
+        # production board data, not only a contrived fixture.
+        with pytest.raises(AmbiguousPadError) as excinfo:
+            source.pad("LED1.1")
+        assert excinfo.value.ref_pad == "LED1.1"
+        assert excinfo.value.nets == (76, 77, 78, 79, 113)
+
+    def test_real_board_ambiguous_pad_does_not_break_other_lookups(self, source):
+        # LED1.1's ambiguity must not brick unrelated terminal lookups on
+        # the same board.
+        assert source.pad("U9.S").net == 94
+        assert source.pad("C53.1").net == 33
 
     def test_has_pours_from_filled_zones(self, source):
         assert len(source.pours()) > 0

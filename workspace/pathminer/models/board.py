@@ -48,6 +48,7 @@ __all__ = [
     "PadDrift",
     "BoardSourceError",
     "PadNotFoundError",
+    "AmbiguousPadError",
     "NetDriftError",
     "ref_pad_name",
     "BoardSource",
@@ -209,6 +210,28 @@ class BoardSourceError(Exception):
 
 class PadNotFoundError(BoardSourceError, KeyError):
     """No terminal named `REF.PAD` exists on this board."""
+
+
+class AmbiguousPadError(BoardSourceError):
+    """Two physical pads share one `REF.PAD` name but sit on different
+    nets.
+
+    The S7.1 alias-collapsing rule ("a footprint often repeats a pin name
+    across pads... those are one electrical terminal") assumes the
+    collapsed pads are electrically the same node, i.e. the same net.
+    When they are not, collapsing them would silently misreport one of
+    the two nets as the other's; this is a broken/ambiguous board
+    identity, not a same-net alias, and must not be resolved silently.
+    """
+
+    def __init__(self, ref_pad: str, nets: Sequence[int]) -> None:
+        self.ref_pad = ref_pad
+        self.nets = tuple(nets)
+        super().__init__(
+            f"{ref_pad}: ambiguous pad identity -- appears on multiple "
+            f"nets {self.nets!r}; pads sharing one REF.PAD name must "
+            "share one net to be collapsed into one terminal"
+        )
 
 
 class NetDriftError(BoardSourceError):

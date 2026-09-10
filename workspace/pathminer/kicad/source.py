@@ -22,6 +22,7 @@ from typing import Mapping, Optional, Sequence
 from pathminer.kicad.board import ParsedBoard, parse_board
 from pathminer.kicad.stackup import Stackup
 from pathminer.models.board import (
+    AmbiguousPadError,
     Net,
     NetDriftError,
     Pad,
@@ -95,40 +96,50 @@ def _terminals_for_net(pads: Sequence[Pad], net: int, dedupe: bool) -> list[Term
     return out
 
 
-def _build_pad_index(pads: Sequence[Pad]) -> dict[str, Terminal]:
-    """Board-wide `REF.PAD` -> `Terminal` index.
+def _build_pad_index(
+    pads: Sequence[Pad],
+) -> tuple[dict[str, Terminal], dict[str, tuple[int, ...]]]:
+    """Board-wide `REF.PAD` -> `Terminal` index, plus any ambiguous names.
 
-    Pads sharing one `REF.PAD` name are assumed to be one electrical
-    terminal (S7.1) and are therefore assumed to share one net; the first
-    pad encountered for a name supplies the terminal's reported net and
-    position, and every later same-named pad becomes an alias. This
-    mirrors calling `terminals(net)` for the specific net the first pad
-    belongs to.
+    Pads sharing one `REF.PAD` name are collapsed into one electrical
+    terminal (S7.1) only when they also share one net -- `_terminals_for_net`
+    already performs that same-net collapse (with aliases) for every net
+    independently, so a `REF.PAD` name can legitimately appear at most
+    once per net group here. If it appears again from a *different* net
+    group, the two pads are not actually one electrical node and
+    collapsing them would silently misreport one net as the other's.
+
+    Real board data can and does contain this: e.g. the IP5385 reference
+    board's ``LED1`` footprint gives every one of its five physically
+    distinct, differently-netted pads the same generic pin function
+    ``"1"``, so all five collapse to the name ``"LED1.1"``. Bricking the
+    *entire* board's terminal lookup over one such component would defeat
+    the point of a board adapter, so the ambiguous name is excluded from
+    `index` and returned separately in `ambiguous`; a lookup naming it
+    specifically fails with `AmbiguousPadError` (see `FileBoardSource.pad`),
+    while every other terminal on the board still resolves normally.
     """
     by_net: dict[int, list[Pad]] = {}
     for p in pads:
         by_net.setdefault(p.net, []).append(p)
 
     index: dict[str, Terminal] = {}
-    for net, net_pads in by_net.items():
+    net_of_name: dict[str, int] = {}
+    ambiguous: dict[str, set[int]] = {}
+    for net, net_pads in sorted(by_net.items()):
         for terminal in _terminals_for_net(net_pads, net, dedupe=True):
-            if terminal.ref_pad in index:
-                existing = index[terminal.ref_pad]
-                index[terminal.ref_pad] = Terminal(
-                    ref_pad=existing.ref_pad,
-                    net=existing.net,
-                    point=existing.point,
-                    layers=existing.layers,
-                    ref=existing.ref,
-                    pad_name=existing.pad_name,
-                    pin_function=existing.pin_function,
-                    aliases=existing.aliases
-                    + (TerminalAlias(pad_name=terminal.pad_name, point=terminal.point),)
-                    + terminal.aliases,
-                )
-            else:
-                index[terminal.ref_pad] = terminal
-    return index
+            name = terminal.ref_pad
+            if name in ambiguous:
+                ambiguous[name].add(net)
+                continue
+            if name in index:
+                ambiguous[name] = {net_of_name[name], net}
+                del index[name]
+                del net_of_name[name]
+                continue
+            index[name] = terminal
+            net_of_name[name] = net
+    return index, {name: tuple(sorted(nets)) for name, nets in ambiguous.items()}
 
 
 class FileBoardSource:
@@ -139,12 +150,20 @@ class FileBoardSource:
     fallback) that are not part of the `BoardSource` protocol itself but
     are useful for callers building richer diagnostics later
     (UI-014/AUTO-006).
+
+    A `REF.PAD` name that collides across different nets (see
+    `_build_pad_index`) does *not* fail construction -- every other
+    terminal on the board must stay usable -- but `pad()` (and therefore
+    `check_drift`/`resolve`) raises `AmbiguousPadError` if that specific
+    name is looked up.
     """
 
     def __init__(self, path: str) -> None:
         self.path = path
         self._parsed: ParsedBoard = parse_board(path)
-        self._pad_index: dict[str, Terminal] = _build_pad_index(self._parsed.pads)
+        self._pad_index: dict[str, Terminal]
+        self._ambiguous_pads: dict[str, tuple[int, ...]]
+        self._pad_index, self._ambiguous_pads = _build_pad_index(self._parsed.pads)
 
     @property
     def notes(self) -> list[str]:
@@ -185,6 +204,8 @@ class FileBoardSource:
         return _terminals_for_net(self._parsed.pads, net, dedupe)
 
     def pad(self, ref_pad: str) -> Terminal:
+        if ref_pad in self._ambiguous_pads:
+            raise AmbiguousPadError(ref_pad, self._ambiguous_pads[ref_pad])
         try:
             return self._pad_index[ref_pad]
         except KeyError:
