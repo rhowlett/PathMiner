@@ -37,7 +37,7 @@ from pathminer.core.network import Provenance, ResistorNetwork
 from pathminer.core.resistance import via_resistance
 from pathminer.core.units import MM_TO_M
 
-from .pour import Tie, ViaStation, pour_geometry
+from .pour import Tie, ViaStation, finished_mm, pour_geometry
 
 __all__ = [
     "DEFAULT_MESH_PITCH_MM",
@@ -69,6 +69,9 @@ def build_mesh(
     grid cells; ``network.terminals`` maps each tie's external key to its node,
     and ``network.notes`` records the grid size.
     """
+    if pitch_mm <= 0:
+        raise ValueError(f"mesh pitch must be positive, got {pitch_mm}")
+
     g = pour_geometry(pour)
     net_id = g.net
     rank = {nm: i for i, nm in enumerate(order)}
@@ -77,6 +80,10 @@ def build_mesh(
     xs = [p[0] for poly in g.fills.values() for p in poly]
     ys = [p[1] for poly in g.fills.values() for p in poly]
     x0, x1, y0, y1 = min(xs), max(xs), min(ys), max(ys)
+    if x1 - x0 <= 0.0 or y1 - y0 <= 0.0:
+        raise ValueError(
+            "pour fill has zero extent along an axis; cannot rasterise a mesh"
+        )
     nx = max(int(round((x1 - x0) / pitch_mm)), 2)
     ny = max(int(round((y1 - y0) / pitch_mm)), 2)
     px, py = (x1 - x0) / nx, (y1 - y0) / ny
@@ -97,8 +104,7 @@ def build_mesh(
         )
 
     for layer, cells in live.items():
-        gg = next(x for x in geo if x["name"] == layer)
-        rs = RHO_CU_20C / (gg["finished_mm"] * MM_TO_M)  # ohms per square
+        rs = RHO_CU_20C / (finished_mm(geo, layer) * MM_TO_M)  # ohms per square
         cellset = set(cells)
         for (i, j) in cells:
             if (i + 1, j) in cellset:
@@ -123,6 +129,11 @@ def build_mesh(
         pt = st.point
         rad = st.hole_mm / 2.0
         lays = sorted((l for l in st.layers if l in rank), key=lambda l: rank[l])
+        if len(lays) < 2:
+            # No current path through it — reported the same way the ladder does,
+            # and the way v0.13 did before its ladder/mesh split.
+            net.notes.append(f"via at {pt} reaches only {lays} - ignored")
+            continue
         hub: dict[str, tuple] = {}
         for layer in lays:
             cells = live.get(layer)
@@ -171,6 +182,7 @@ def build_mesh(
                             "from": a,
                             "to": b,
                             "hole_mm": st.hole_mm,
+                            "pad_mm": st.pad_mm,
                             "point": pt,
                             "in_pour": True,
                             "length_m": length_m,

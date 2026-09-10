@@ -35,10 +35,11 @@ from pathminer.core.network import Provenance, ResistorNetwork
 from pathminer.core.resistance import trace_resistance, via_resistance
 from pathminer.core.units import MM_TO_M
 
-from .pour import Tie, ViaStation, pour_geometry
+from .pour import Tie, ViaStation, finished_mm, pour_geometry
 
 __all__ = [
     "LADDER_MIN_ASPECT",
+    "low_aspect_warning",
     "build_ladder",
 ]
 
@@ -48,11 +49,13 @@ __all__ = [
 LADDER_MIN_ASPECT = 2.0
 
 
-def _finished_mm(geo: Sequence[Mapping[str, Any]], layer: str) -> float:
-    g = next((x for x in geo if x["name"] == layer), None)
-    if g is None:
-        raise ValueError(f"layer {layer} is not in the stackup")
-    return g["finished_mm"]
+def low_aspect_warning(aspect: float) -> str:
+    """The single low-aspect caveat used by both the ladder note and the
+    model-selection warning, so their wording never drifts apart."""
+    return (
+        f"pour aspect ratio is only {aspect:.1f}:1 - a 1-D strip model is "
+        "questionable on copper this square; consider the mesh model"
+    )
 
 
 def build_ladder(
@@ -82,10 +85,7 @@ def build_ladder(
     net = ResistorNetwork(name=name)
 
     if g.aspect < LADDER_MIN_ASPECT:
-        net.notes.append(
-            f"pour aspect ratio is only {g.aspect:.1f}:1 - a 1-D strip model is "
-            "questionable on copper this square; consider the mesh model"
-        )
+        net.notes.append(low_aspect_warning(g.aspect))
 
     # Via stations, keyed by their axial projection (v0.13 ``via_layers``).
     via_layers: dict[float, dict[str, Any]] = {}
@@ -102,10 +102,14 @@ def build_ladder(
             "point": st.point,
         }
 
-    # Ties, keyed by (layer, point) → (axial projection, external node).
+    # Ties, keyed by (layer, point) → (axial projection, external node). A tie
+    # is only meaningful on a layer that is both filled *and* modelled (in
+    # ``order``); strips are built only for such layers, so a tie on any other
+    # layer would fuse into a node that carries no strip edge and silently
+    # disconnect the terminal.
     tie_pts: dict[tuple, tuple] = {}
     for t in ties:
-        if t.layer in g.fills:
+        if t.layer in g.fills and t.layer in rank:
             tie_pts[(t.layer, t.point)] = (g.project(t.point), t.external())
 
     # Strip stations are every via and tie projection along the axis (v0.13).
@@ -118,7 +122,7 @@ def build_ladder(
     for layer in g.fills:
         if layer not in rank:
             continue
-        finished = _finished_mm(geo, layer)
+        finished = finished_mm(geo, layer)
         for u0, u1 in zip(us, us[1:]):
             du = u1 - u0
             if du <= 1e-9:
@@ -160,6 +164,7 @@ def build_ladder(
                         "from": a,
                         "to": b,
                         "hole_mm": info["hole_mm"],
+                        "pad_mm": info["pad_mm"],
                         "point": info["point"],
                         "in_pour": True,
                         "length_m": length_m,

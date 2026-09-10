@@ -22,7 +22,7 @@ no Qt, no wx.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Hashable, List, Mapping, Optional, Sequence, Tuple
+from typing import Any, Hashable, List, Mapping, Optional, Sequence, Tuple
 
 from pathminer.core.geometry import principal_axis
 
@@ -34,7 +34,21 @@ __all__ = [
     "pour_geometry",
     "ViaStation",
     "Tie",
+    "finished_mm",
 ]
+
+
+def finished_mm(geo: Sequence[Mapping[str, Any]], layer: str) -> float:
+    """Finished (plated) copper thickness in mm for *layer*, from *geo*.
+
+    Shared by all three builders so they raise the *same* named error for a
+    layer absent from the stackup (preserving failure modes across models).
+    Raises ``ValueError('layer {layer} is not in the stackup')``.
+    """
+    g = next((x for x in geo if x["name"] == layer), None)
+    if g is None:
+        raise ValueError(f"layer {layer} is not in the stackup")
+    return g["finished_mm"]
 
 
 @dataclass(frozen=True)

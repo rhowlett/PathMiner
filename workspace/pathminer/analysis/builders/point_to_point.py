@@ -26,6 +26,8 @@ from pathminer.core.network import Provenance, ResistorNetwork
 from pathminer.core.resistance import trace_resistance, via_resistance
 from pathminer.core.units import MM_TO_M
 
+from .pour import finished_mm
+
 __all__ = [
     "TraceSegment",
     "ViaSegment",
@@ -62,13 +64,6 @@ class ViaSegment:
 Segment = Union[TraceSegment, ViaSegment]
 
 
-def _finished_mm(geo: Sequence[Mapping[str, Any]], layer: str) -> float:
-    g = next((x for x in geo if x["name"] == layer), None)
-    if g is None:
-        raise ValueError(f"layer {layer} is not in the stackup")
-    return g["finished_mm"]
-
-
 def build_point_to_point(
     segments: Sequence[Segment],
     geo: Sequence[Mapping[str, Any]],
@@ -97,7 +92,7 @@ def build_point_to_point(
     for i, seg in enumerate(segments):
         u, v = i, i + 1
         if isinstance(seg, TraceSegment):
-            finished = _finished_mm(geo, seg.layer)
+            finished = finished_mm(geo, seg.layer)
             r = trace_resistance(
                 seg.length_mm * MM_TO_M,
                 seg.width_mm * MM_TO_M,

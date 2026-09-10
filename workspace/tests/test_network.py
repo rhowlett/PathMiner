@@ -175,6 +175,19 @@ def test_default_provenance_carries_network_name():
     assert edge.provenance.origin == "board-derived"
 
 
+def test_provenance_and_edge_are_hashable_despite_dict_detail():
+    # frozen=True advertises hashability; the dict `detail` must not break it,
+    # so both types can live in a set / be dict keys.
+    prov = Provenance("board-derived", "m", {"layer": "F.Cu"})
+    assert isinstance(hash(prov), int)
+    edge = Edge("A", "B", 1.0, "trace", prov)
+    assert isinstance(hash(edge), int)
+    assert len({edge, edge}) == 1              # usable in a set
+    # Equality still accounts for detail (dict equality).
+    assert prov == Provenance("board-derived", "m", {"layer": "F.Cu"})
+    assert prov != Provenance("board-derived", "m", {"layer": "B.Cu"})
+
+
 def test_edges_view_is_insertion_ordered_and_immutable():
     net = ResistorNetwork()
     net.add_edge("A", "B", 1.0)

@@ -262,6 +262,43 @@ def test_mesh_default_pitch_constant():
     assert DEFAULT_MESH_PITCH_MM == 0.25
 
 
+def test_mesh_unknown_layer_raises_named_error():
+    # Consistency with point-to-point / ladder: a modelled layer missing from
+    # the stackup raises the same named ValueError, not a bare StopIteration.
+    geo_missing = [
+        {"name": "B.Cu", "z_top_mm": 1.6, "finished_mm": 0.035, "z_ctr_mm": 1.6175},
+    ]
+    pour = _Pour(4, {"F.Cu": _rect(0, 0, 20, 2)})
+    ties = [Tie("F.Cu", (0.5, 1.0), "A"), Tie("F.Cu", (19.5, 1.0), "B")]
+    with pytest.raises(ValueError, match="not in the stackup"):
+        build_mesh(pour, [], ties, geo_missing, PLATING_M, ["F.Cu"], pitch_mm=0.5)
+
+
+@pytest.mark.parametrize("pitch", [0.0, -0.25])
+def test_mesh_non_positive_pitch_raises(pitch):
+    pour = _Pour(4, {"F.Cu": _rect(0, 0, 20, 2)})
+    with pytest.raises(ValueError, match="pitch must be positive"):
+        build_mesh(pour, [], [], GEO, PLATING_M, ORDER, pitch_mm=pitch)
+
+
+def test_mesh_degenerate_fill_raises_named_error():
+    # A zero-extent fill (all points share an x) would divide by zero; a named
+    # error is raised instead.
+    pour = _Pour(4, {"F.Cu": [(5.0, 0.0), (5.0, 2.0), (5.0, 4.0)]})
+    with pytest.raises(ValueError, match="zero extent"):
+        build_mesh(pour, [], [], GEO, PLATING_M, ORDER, pitch_mm=0.5)
+
+
+def test_mesh_via_reaching_one_layer_is_skipped_with_note():
+    # Same diagnostic the ladder emits, and the way v0.13 reported it before its
+    # ladder/mesh split.
+    pour = _Pour(4, {"F.Cu": _rect(0, 0, 20, 2), "B.Cu": _rect(0, 0, 20, 2)})
+    stations = [ViaStation((10.0, 1.0), ("F.Cu",), 0.3)]
+    ties = [Tie("F.Cu", (0.5, 1.0), "A"), Tie("F.Cu", (19.5, 1.0), "B")]
+    net = build_mesh(pour, stations, ties, GEO, PLATING_M, ORDER, pitch_mm=0.5)
+    assert any("reaches only" in n for n in net.notes)
+
+
 # ---------------------------------------------------------------------------
 # Fast-vs-mesh correlation + mesh refinement (QA-005 contribution).
 # ---------------------------------------------------------------------------

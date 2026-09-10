@@ -26,7 +26,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Optional, Tuple
 
-from .builders.ladder import LADDER_MIN_ASPECT
+from .builders.ladder import LADDER_MIN_ASPECT, low_aspect_warning
 from .builders.pour import pour_geometry
 
 __all__ = [
@@ -107,10 +107,7 @@ def select_model(
     else:
         low_aspect = aspect is not None and aspect < min_aspect
         if low_aspect:
-            warnings.append(
-                f"pour aspect ratio is only {aspect:.1f}:1 - a 1-D strip model is "
-                "questionable on copper this square; consider the mesh model"
-            )
+            warnings.append(low_aspect_warning(aspect))
         if complex_pour:
             auto = "mesh"
             auto_reason = (

@@ -88,7 +88,12 @@ class Provenance:
 
     origin: str = "board-derived"
     model: str = ""
-    detail: Mapping[str, Any] = field(default_factory=dict)
+    # ``detail`` is a mapping (a dict), which is unhashable. It is excluded from
+    # the frozen dataclass's generated ``__hash__`` (via ``hash=False``) so that
+    # ``Provenance`` — and the ``Edge`` that embeds it — stay genuinely hashable
+    # (usable in sets / as dict keys) instead of only *appearing* hashable and
+    # raising ``TypeError`` at hash time. Equality still compares ``detail``.
+    detail: Mapping[str, Any] = field(default_factory=dict, hash=False)
 
 
 @dataclass(frozen=True)
@@ -123,8 +128,14 @@ class TwoTerminalResult:
         ``backend``     the resolved backend (``"dense"``, ``"cg"``, or
                         ``"scipy"`` — ``"auto"`` is resolved to the concrete
                         choice using the same crossover as the dispatcher);
-        ``node_count``  number of distinct nodes in the solved edge list;
-        ``edge_count``  number of edges that survived equipotential merges.
+        ``node_count``  number of distinct nodes in the edge list *submitted*
+                        to the solver (all merged edges), which is exactly the
+                        count the dense/sparse crossover uses; the solver then
+                        internally restricts the solve to the source's connected
+                        component, so a graph with unrelated islands reports a
+                        larger ``node_count`` than the sub-network actually
+                        solved (this matches the dispatcher's own accounting);
+        ``edge_count``  number of edges submitted after equipotential merges.
     """
 
     resistance: float
@@ -294,6 +305,12 @@ class ResistorNetwork:
             edges, src, dst, backend=backend, dense_limit=dense_limit
         )
         node_count = len({u for u, _v, _r in edges} | {v for _u, v, _r in edges})
+        # Mirror the dispatcher's dense/sparse crossover to report which backend
+        # ``auto`` resolved to. This deliberately duplicates the rule in
+        # ``two_terminal_resistance`` (same DENSE_NODE_LIMIT / HAVE_SCIPY, same
+        # submitted-graph node count), because the dispatcher does not report
+        # its choice. A cleaner fix — having the dispatcher return the resolved
+        # backend — belongs to the solver's owning session, not this one.
         resolved = backend
         if resolved == "auto":
             resolved = "dense" if node_count <= dense_limit else (
