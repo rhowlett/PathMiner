@@ -1,0 +1,59 @@
+(kicad_pcb
+	(version 20241229)
+	(generator "pcbnew")
+	(general
+		(thickness 1.6)
+	)
+	(setup
+		(stackup
+			(layer "F.Cu"
+				(type "copper")
+				(thickness 0.035)
+			)
+			(layer "dielectric 1"
+				(type "core")
+				(thickness 1.51)
+				(material "FR4")
+				(epsilon_r 4.5)
+			)
+			(layer "B.Cu"
+				(type "copper")
+				(thickness 0.035)
+			)
+		)
+	)
+	(net 0 "")
+	(net 1 "SIG_A")
+	(net 2 "GND")
+	(footprint "Test:J1"
+		(layer "F.Cu")
+		(uuid "55555555-5555-5555-5555-555555555551")
+		(at 50 10)
+		(property "Reference" "J1"
+			(at 0 0)
+			(layer "F.SilkS")
+			(uuid "55555555-5555-5555-5555-555555555552")
+			(effects
+				(font
+					(size 1 1)
+				)
+			)
+		)
+		(pad "1" smd rect
+			(at 0 0)
+			(size 0.5 0.5)
+			(layers "F.Cu")
+			(net 1 "SIG_A")
+			(pinfunction "SIG")
+			(uuid "55555555-5555-5555-5555-555555555553")
+		)
+		(pad "2" smd rect
+			(at 2 0)
+			(size 0.5 0.5)
+			(layers "F.Cu")
+			(net 2 "GND")
+			(pinfunction "SIG")
+			(uuid "55555555-5555-5555-5555-555555555554")
+		)
+	)
+)

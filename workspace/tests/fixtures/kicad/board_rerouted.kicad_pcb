@@ -1,0 +1,140 @@
+(kicad_pcb
+	(version 20241229)
+	(generator "pcbnew")
+	(general
+		(thickness 1.6)
+	)
+	(setup
+		(stackup
+			(layer "F.Cu"
+				(type "copper")
+				(thickness 0.035)
+			)
+			(layer "dielectric 1"
+				(type "core")
+				(thickness 1.51)
+				(material "FR4")
+				(epsilon_r 4.5)
+			)
+			(layer "B.Cu"
+				(type "copper")
+				(thickness 0.035)
+			)
+		)
+	)
+	(net 0 "")
+	(net 1 "SIG_A_MOVED")
+	(net 2 "GND")
+	(footprint "Test:U1"
+		(layer "F.Cu")
+		(uuid "11111111-1111-1111-1111-111111111111")
+		(at 10 10)
+		(property "Reference" "U1"
+			(at 0 0)
+			(layer "F.SilkS")
+			(uuid "11111111-1111-1111-1111-111111111112")
+			(effects
+				(font
+					(size 1 1)
+				)
+			)
+		)
+		(pad "1" smd rect
+			(at 0 0)
+			(size 0.5 0.5)
+			(layers "F.Cu")
+			(net 1 "SIG_A_MOVED")
+			(uuid "11111111-1111-1111-1111-111111111113")
+		)
+		(pad "2" smd rect
+			(at 2 0)
+			(size 0.5 0.5)
+			(layers "F.Cu")
+			(net 2 "GND")
+			(uuid "11111111-1111-1111-1111-111111111114")
+		)
+	)
+	(footprint "Test:U2"
+		(layer "F.Cu")
+		(uuid "22222222-2222-2222-2222-222222222221")
+		(at 30 10)
+		(property "Reference" "U2"
+			(at 0 0)
+			(layer "F.SilkS")
+			(uuid "22222222-2222-2222-2222-222222222222")
+			(effects
+				(font
+					(size 1 1)
+				)
+			)
+		)
+		(pad "1" smd rect
+			(at 0 0)
+			(size 0.5 0.5)
+			(layers "F.Cu")
+			(net 1 "SIG_A_MOVED")
+			(pinfunction "S")
+			(uuid "22222222-2222-2222-2222-222222222223")
+		)
+		(pad "2" smd rect
+			(at 2 0)
+			(size 0.5 0.5)
+			(layers "F.Cu")
+			(net 1 "SIG_A_MOVED")
+			(pinfunction "S")
+			(uuid "22222222-2222-2222-2222-222222222224")
+		)
+	)
+	(segment
+		(start 10 10)
+		(end 30 10)
+		(width 0.25)
+		(layer "F.Cu")
+		(net 1)
+		(uuid "33333333-3333-3333-3333-333333333331")
+	)
+	(via
+		(at 20 10)
+		(size 0.6)
+		(drill 0.3)
+		(layers "F.Cu" "B.Cu")
+		(net 1)
+		(uuid "33333333-3333-3333-3333-333333333332")
+	)
+	(arc
+		(start 30 10)
+		(mid 31 11)
+		(end 32 10)
+		(width 0.25)
+		(layer "F.Cu")
+		(net 1)
+		(uuid "33333333-3333-3333-3333-333333333333")
+	)
+	(zone
+		(net 2)
+		(net_name "GND")
+		(layer "F.Cu")
+		(uuid "44444444-4444-4444-4444-444444444441")
+		(hatch edge 0.5)
+		(connect_pads yes
+			(clearance 0.3)
+		)
+		(min_thickness 0.127)
+		(filled_areas_thickness no)
+		(fill yes
+			(thermal_gap 0.5)
+			(thermal_bridge_width 0.5)
+		)
+		(polygon
+			(pts
+				(xy 10 20) (xy 30 20) (xy 30 30) (xy 10 30)
+			)
+		)
+		(filled_polygon
+			(layer "F.Cu")
+			(pts
+				(xy 10 20) (xy 30 20) (xy 30 30) (xy 10 30)
+			)
+		)
+	)
+)
