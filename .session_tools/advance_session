@@ -538,7 +538,16 @@ def main() -> int:
                 checks.failed(f"could not inspect Session {completed} scope diff")
             else:
                 changed = [line for line in diff.stdout.splitlines() if line]
-                out_of_scope = [path for path in changed if path not in allowed_paths]
+                #out_of_scope = [path for path in changed if path not in allowed_paths]
+                out_of_scope = [
+                    path
+                    for path in changed
+                    if not any(
+                        path == allowed
+                        or path.startswith(allowed.rstrip("/") + "/")
+                        for allowed in allowed_paths
+                    )
+                ]
                 if out_of_scope:
                     checks.failed(
                         "completed-session diff contains out-of-scope paths:\n"
