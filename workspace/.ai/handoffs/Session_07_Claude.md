@@ -5,8 +5,8 @@
 - **Role:** implementing writer
 - **Branch:** `ai/session-07-claude-network-builders`
 - **Base commit:** `27bc7503676067b705a283680726d173bee00038` ("chore: integrate Session 06 and assign Session 07")
-- **Final commit:** `e4f2fe5b280fb0cee9684b0d5ca64ad3f3ea6e88`
-  (implementation `1a975b73ad4d5a671e527a74c735bafbe4b621cd`; self-review fixes `e4f2fe5b280fb0cee9684b0d5ca64ad3f3ea6e88`)
+- **Final commit:** `ff567d876d4577bedb164fec545eadfcfff9ae85`
+  (implementation `1a975b7`; self-review fixes `e4f2fe5`; coordinator-review fixes `ff567d8`)
 - **Status:** READY_FOR_REVIEW
 
 ## Objective (met)
@@ -43,7 +43,7 @@ and fast-versus-mesh correlation fixtures.
 |----|------|--------|----------|
 | ARCH-004 | closure owner | **closed** | Done-when ("point-to-point, ladder, and mesh builders all emit the same network type") demonstrated: `tests/test_builders.py::test_all_builders_emit_resistor_network` asserts all three builders return `pathminer.core.network.ResistorNetwork`, and `test_all_builders_produce_solvable_networks` asserts each solves to a `TwoTerminalResult`. |
 | ARCH-006 | contribution (dispatcher prerequisites) | implemented (open) | `ResistorNetwork.edge_list()` produces the backend-neutral `[(u,v,r)]` the Session 04 dispatcher consumes, and `ResistorNetwork.two_terminal()` delegates to it; backend passthrough agreement tested (`tests/test_network.py::test_backend_passthrough_agrees`). Whole-item closure remains with the dispatcher owner. |
-| PWR-002 | contribution (policy slice) | implemented (open) | `pathminer/analysis/model_selection.py` chooses point-to-point / ladder / mesh from geometry, states a reason, and **escalates or warns** on square/complex pours rather than silently laddering; user override retained with marker + warning. Tested in `tests/test_model_selection.py`. UI reason/override wiring is a later session. |
+| PWR-002 | contribution (policy slice) | implemented (open) | `pathminer/analysis/model_selection.py` chooses point-to-point / routed-graph / ladder / mesh from geometry (S8.7's four cases), states a reason, and **escalates or warns** on square/complex/unknown pours rather than silently laddering; a zone-less routed net is reported `ROUTED_GRAPH` (unsupported until its builder exists) rather than assumed to be a series chain; every applicable warning is retained across a user override. Tested in `tests/test_model_selection.py`. UI reason/override wiring is a later session. |
 | QA-005 | contribution (correlation fixture slice) | implemented (open) | Fast-vs-mesh correlation and mesh-refinement convergence fixtures: `tests/test_builders.py::test_fast_ladder_matches_mesh_within_tolerance` (mesh within 3% of the ladder on a strip-like pour) and `test_mesh_converges_toward_ladder_as_pitch_refines` (monotone convergence to <1% as pitch refines). Full cost/backend-choice closure is a later session. |
 
 Only the coordinator may mark the session INTEGRATED.
@@ -58,7 +58,7 @@ Only the coordinator may mark the session INTEGRATED.
 - `pathminer/analysis/builders/point_to_point.py` — `TraceSegment`, `ViaSegment`, `build_point_to_point`.
 - `pathminer/analysis/builders/ladder.py` — `LADDER_MIN_ASPECT`, `build_ladder`.
 - `pathminer/analysis/builders/mesh.py` — `DEFAULT_MESH_PITCH_MM`, `build_mesh`.
-- `pathminer/analysis/model_selection.py` — `MODELS`, `ModelChoice`, `select_model`, `select_model_for_pour`.
+- `pathminer/analysis/model_selection.py` — `MODELS`, `ROUTED_GRAPH`, `ModelChoice`, `select_model`, `select_model_for_pour` (plus the `COMPLEX_POUR_WARNING` / `UNKNOWN_GEOMETRY_WARNING` / `ROUTED_UNSUPPORTED_WARNING` constants).
 - `tests/test_network.py`, `tests/test_builders.py`, `tests/test_model_selection.py`.
 
 **Modified / removed:** none. (No existing or shared file was touched; all work is within the session's owned write scope.)
@@ -67,6 +67,10 @@ Only the coordinator may mark the session INTEGRATED.
 
 - New public APIs only, all additive under `pathminer.core.network`,
   `pathminer.analysis.builders`, and `pathminer.analysis.model_selection`.
+- `select_model` / `select_model_for_pour` gained a keyword-only `series_chain`
+  flag (default `False`) and can now return the `ROUTED_GRAPH` sentinel for a
+  zone-less routed net — added in coordinator-review, still within this new
+  session's own API surface (no external caller yet).
 - No existing API signature, schema, default, unit, tolerance, or numerical
   behavior was changed. `pathminer/core/__init__.py` and
   `pathminer/analysis/__init__.py` were **not** modified (out of scope); the new
@@ -76,20 +80,47 @@ Only the coordinator may mark the session INTEGRATED.
 
 | Command | Exit | Result | Runtime |
 |---|---|---|---|
-| `python3 -m pytest -q tests/test_network.py tests/test_builders.py tests/test_model_selection.py` | 0 | 71 passed | ~0.56 s |
-| `python3 -m pytest -q` (full regression) | 0 | 451 passed (380 baseline + 71 new) | ~2.25 s |
-| `python3 -m pytest -q tests/test_import_boundaries.py` (ARCH-002 guard) | 0 | 48 passed | ~0.17 s |
+| `python3 -m pytest -q tests/test_network.py tests/test_builders.py tests/test_model_selection.py` | 0 | 78 passed | ~0.55 s |
+| `python3 -m pytest -q` (full regression) | 0 | 458 passed (380 baseline + 78 new) | ~2.73 s |
+| `python3 -m pytest -q tests/test_import_boundaries.py` (ARCH-002 guard) | 0 | 48 passed | ~0.18 s |
 
 Environment: SciPy 1.18.1 / NumPy 2.5.2 present (the mesh fixtures exercise the
 sparse SciPy backend via the dispatcher; the pure-Python CG path is the fallback
 when SciPy is absent and is what the `backend` field would report then).
 No tests were skipped in this run. No unrun test is reported as passing.
 
+## Coordinator review pass (findings addressed)
+
+Three defects raised in coordinator review were fixed in `ff567d8`, all within
+owned scope, each with a regression test:
+
+- **Ladder dropped coincident terminal aliases.** Ties were keyed by
+  `(layer, point)`, so two terminals on the same copper point overwrote each
+  other and the dropped one failed to solve (`endpoint not in graph`). Ties are
+  now grouped by point and **every** external terminal is merged into that node
+  (coincident terminals become one electrical node). (Test:
+  `test_builders.py::test_ladder_preserves_coincident_terminal_aliases`.)
+- **Complex-pour override lost its warning.** `select_model(has_pour=True,
+  aspect=10, complex_pour=True, override="ladder")` returned no warning. All
+  caveats (low-aspect, complex, unknown-geometry) are now collected before the
+  model is chosen, so an override to the ladder retains "the strip assumption
+  does not hold / cannot be justified" (S8.7). (Tests:
+  `test_model_selection.py::test_override_to_ladder_on_complex_pour_retains_warning`,
+  `...on_unknown_geometry_retains_warning`.)
+- **No-zone selection assumed a series chain.** `has_pour=False` always chose
+  `point_to_point`, but S8.7 distinguishes a manual series chain from a routed
+  graph. A new `series_chain` flag now separates them: a manual chain →
+  `point_to_point`; a routed net → `ROUTED_GRAPH`, reported **unsupported** (no
+  routed-graph builder exists yet) with a retained warning. (Tests:
+  `test_model_selection.py::test_no_zone_routed_net_reports_unsupported`,
+  `...test_no_zone_series_chain_selects_point_to_point`,
+  `...test_routed_override_to_point_to_point_retains_unsupported_warning`.)
+
 ## Self-review pass (findings addressed)
 
-An automated review of the diff was run (`/code-review`, medium). All 65 (now
-71) tests passed; the findings were edge cases the happy path did not exercise.
-Addressed in the fix commit, all within owned scope:
+An automated review of the diff was run (`/code-review`, medium). All tests
+passed; the findings were edge cases the happy path did not exercise (65 tests
+at that point, now 78). Addressed in `e4f2fe5`, all within owned scope:
 
 - **Hashability contract:** `Edge`/`Provenance` were `frozen=True` (advertising
   hashability) but held a dict `detail`, so `hash()` raised `TypeError`. `detail`
@@ -177,8 +208,9 @@ Findings left as documented decisions rather than code changes:
 - The builders are not yet wired to a `BoardSource`; track-vs-pour clipping,
   pad-in-pour tie discovery, and via-array clustering (v0.13 `build_graph_pour`)
   are the integration layer's responsibility and are out of this session's
-  scope. No net-level graph builder ("routed traces/vias without zones") is
-  provided here; `select_model` names that case as `point_to_point`.
+  scope. No routed net-graph builder ("routed traces/vias without zones") is
+  provided here; `select_model` returns `ROUTED_GRAPH` for that case and marks
+  it unsupported until the builder lands (a future session must add it).
 - Fast-vs-mesh agreement depends on matching boundary conditions: the QA-005
   fixture distributes the end injection across the pour width so the mesh's
   point-contact spreading matches the ladder's full-width strip node. A single
@@ -202,6 +234,11 @@ Findings left as documented decisions rather than code changes:
 - **PWR sessions:** `model_selection.select_model_for_pour` and the three
   builders are the intended entry points for the routed/pour analysis runner;
   `ModelChoice` carries the reason/override/warnings the result renderer needs.
+  Callers must pass `series_chain=True` for a manual chain; a routed net returns
+  `ROUTED_GRAPH`, which the runner must surface as unsupported.
+- **A future session must add the routed net-graph builder** (S8.7 "routed
+  traces/vias without zones"); until then `select_model` returns `ROUTED_GRAPH`
+  as unsupported.
 
 ## Recommended next action
 
