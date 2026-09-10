@@ -1,0 +1,103 @@
+{
+  "session": 7,
+  "ai": "Claude",
+  "model": "Opus-4.8",
+  "speed": "standard",
+  "effort": "extra",
+  "status": "READY_FOR_REVIEW",
+  "base_commit": "27bc7503676067b705a283680726d173bee00038",
+  "final_commit": "1a975b73ad4d5a671e527a74c735bafbe4b621cd",
+  "branch": "ai/session-07-claude-network-builders",
+  "patch_checksum": null,
+  "punch_items": [
+    {
+      "id": "ARCH-004",
+      "role": "closure owner",
+      "status": "closed",
+      "evidence": "Done-when ('point-to-point, ladder, and mesh builders all emit the same network type') demonstrated: tests/test_builders.py::test_all_builders_emit_resistor_network asserts all three builders return pathminer.core.network.ResistorNetwork, and test_all_builders_produce_solvable_networks asserts each solves to a TwoTerminalResult. 65 targeted tests pass."
+    },
+    {
+      "id": "ARCH-006",
+      "role": "contribution (dispatcher prerequisites)",
+      "status": "implemented",
+      "evidence": "ResistorNetwork.edge_list() produces the backend-neutral [(u,v,r)] the Session 04 dispatcher consumes, and ResistorNetwork.two_terminal() delegates to two_terminal_resistance; backend passthrough agreement tested (tests/test_network.py::test_backend_passthrough_agrees, test_network_matches_raw_solver). Whole-item closure remains with the dispatcher owner; left open."
+    },
+    {
+      "id": "PWR-002",
+      "role": "contribution (policy slice)",
+      "status": "implemented",
+      "evidence": "pathminer/analysis/model_selection.py selects point_to_point/ladder/mesh from geometry with a stated reason and escalates or warns on square/complex/unknown pours instead of silently laddering; user override honoured with marker and retained warning. Covered by tests/test_model_selection.py. UI reason/override wiring is a later session; left open."
+    },
+    {
+      "id": "QA-005",
+      "role": "contribution (correlation fixture slice)",
+      "status": "implemented",
+      "evidence": "Fast-vs-mesh correlation and mesh-refinement convergence fixtures: tests/test_builders.py::test_fast_ladder_matches_mesh_within_tolerance (mesh within 3% of the ladder on a strip-like pour) and test_mesh_converges_toward_ladder_as_pitch_refines (monotone convergence to <1% as pitch refines). Full cost/backend-choice closure is a later session; left open."
+    }
+  ],
+  "files": {
+    "added": [
+      "pathminer/core/network.py",
+      "pathminer/analysis/builders/__init__.py",
+      "pathminer/analysis/builders/pour.py",
+      "pathminer/analysis/builders/point_to_point.py",
+      "pathminer/analysis/builders/ladder.py",
+      "pathminer/analysis/builders/mesh.py",
+      "pathminer/analysis/model_selection.py",
+      "tests/test_network.py",
+      "tests/test_builders.py",
+      "tests/test_model_selection.py"
+    ],
+    "modified": [],
+    "removed": []
+  },
+  "apis_changed": [
+    "pathminer.core.network: NEW Node, Provenance, Edge, TwoTerminalResult, ResistorNetwork (add_edge, merge, canonical, edge_list, two_terminal, from_edges, nodes, node_count, edge_count, notes, terminals)",
+    "pathminer.analysis.builders: NEW build_point_to_point, TraceSegment, ViaSegment, Segment, build_ladder, LADDER_MIN_ASPECT, build_mesh, DEFAULT_MESH_PITCH_MM, PourGeometry, pour_geometry, ViaStation, Tie",
+    "pathminer.analysis.model_selection: NEW MODELS, ModelChoice, select_model, select_model_for_pour"
+  ],
+  "schemas_changed": [],
+  "compatibility_consequences": [
+    "Additive only: no existing API signature, schema, default, unit, tolerance, or numerical behavior changed.",
+    "pathminer/core/__init__.py and pathminer/analysis/__init__.py were not modified (out of scope); new modules are imported by full dotted path. Session 08 may re-export them through the package hubs."
+  ],
+  "tests": [
+    {
+      "command": "python3 -m pytest -q tests/test_network.py tests/test_builders.py tests/test_model_selection.py",
+      "exit_code": 0,
+      "result": "65 passed",
+      "runtime_seconds": 0.55
+    },
+    {
+      "command": "python3 -m pytest -q",
+      "exit_code": 0,
+      "result": "445 passed (380 baseline + 65 new), 0 skipped",
+      "runtime_seconds": 2.29
+    }
+  ],
+  "decisions": [
+    "Equipotential ties modelled as union-find node merges (ResistorNetwork.merge + edge_list collapse), not near-zero tie resistors, preserving v0.13's solver-conditioning contract.",
+    "The solver's shared _prepare stays the single resistance validator; add_edge does not re-validate, so build->solve raises the same named errors as a raw edge list.",
+    "Pure builders take explicit geometry/topology inputs (ViaStation, Tie, a .net/.fills pour), not a BoardSource; BoardSource wiring is a later integration/PWR session, matching where that orchestration lived in v0.13 build_graph_pour.",
+    "Model-selection escalates to the mesh when pour aspect < LADDER_MIN_ASPECT (v0.13's 2:1), when flagged complex, or when geometry is unknown; strip-like pours use the ladder; overrides retain a marker and any warning (S8.7)."
+  ],
+  "assumptions": [
+    "geo passed to builders is the per-copper-layer mapping shape from Stackup.geometry() (name, z_top_mm, finished_mm, z_ctr_mm) that pathminer.core.resistance expects.",
+    "A pour is represented as .net + .fills ({layer: [(x, y), ...]}), matching pathminer.models.board.Pour."
+  ],
+  "deviations": [
+    "Mesh determinism refinement (numerics-preserving): v0.13's mesh_pour_edges picked a via hub cell and a tie's nearest cell by set iteration order; build_mesh iterates live cells sorted and breaks nearest-cell ties by cell index. All cells a barrel covers merge to one node regardless, so the two-terminal result is unchanged; only node identity becomes reproducible (test_mesh_is_deterministic).",
+    "build_ladder does not itself skip a vialess pour; v0.13 made that decision in build_graph_pour orchestration. The strip/rung/tie numerics are identical for the overlapping case; the 'ignore a vialess pour' policy belongs to the caller."
+  ],
+  "known_issues": [
+    "Builders are not yet wired to a BoardSource; track-vs-pour clipping, pad-in-pour tie discovery, and via-array clustering (v0.13 build_graph_pour) are the integration layer's job and out of scope.",
+    "No routed net-graph builder ('routed traces/vias without zones') is provided; select_model names that case as point_to_point.",
+    "Fast-vs-mesh agreement depends on matching boundary conditions; a single point tie legitimately shows a larger mesh-vs-ladder gap (physical constriction resistance the 1-D ladder cannot represent), which is why the QA-005 fixture distributes the end injection across the pour width."
+  ],
+  "dependent_session_impact": [
+    "Session 08 (compatibility integration / single-file build) may re-export ResistorNetwork and the builders through the untouched package hubs.",
+    "Session 13 (headless runner / factorization reuse, ARCH-007): ResistorNetwork.edge_list() is the stable point to build/factor a graph once per net/model and back-solve pairs.",
+    "PWR sessions: model_selection.select_model_for_pour and the three builders are the entry points for the routed/pour analysis runner; ModelChoice carries the reason/override/warnings the result renderer needs."
+  ],
+  "recommended_next_action": "Coordinator review of the diff and handoff; on approval, integrate at the recorded final commit and open dependent sessions (08, 13, and the PWR wave). Optionally assign the paired ChatGPT prompt as a read-only reviewer of the numerics."
+}
