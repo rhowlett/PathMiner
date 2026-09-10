@@ -185,6 +185,32 @@ def test_ladder_single_layer_strip_matches_hand_price():
     assert net.two_terminal("A", "B").resistance == pytest.approx(expected, abs=1e-12)
 
 
+def test_ladder_preserves_coincident_terminal_aliases():
+    # Two distinct terminals ('A' and its alias 'C') land on the SAME copper
+    # point; both must survive (keying ties by point alone previously dropped
+    # one, which then failed with 'endpoint not in graph'). Coincident ties
+    # collapse to one electrical node.
+    pour = _Pour(4, {"F.Cu": _rect(0, 0, 20, 2)})
+    ties = [
+        Tie("F.Cu", (0.5, 1.0), "A"),
+        Tie("F.Cu", (0.5, 1.0), "C"),      # coincident alias of A
+        Tie("F.Cu", (19.5, 1.0), "B"),
+    ]
+    net = build_ladder(pour, [], ties, GEO, PLATING_M, ORDER)
+    # Every external terminal is preserved.
+    assert {"A", "C", "B"} <= set(net.terminals)
+    # Coincident terminals are the same electrical node.
+    assert net.canonical("A") == net.canonical("C")
+    # A and its alias both solve to B, and to the same value as a lone terminal.
+    r_ac = net.two_terminal("A", "B").resistance
+    assert net.two_terminal("C", "B").resistance == pytest.approx(r_ac, abs=1e-15)
+    lone = build_ladder(
+        pour, [], [Tie("F.Cu", (0.5, 1.0), "A"), Tie("F.Cu", (19.5, 1.0), "B")],
+        GEO, PLATING_M, ORDER,
+    ).two_terminal("A", "B").resistance
+    assert r_ac == pytest.approx(lone, abs=1e-15)
+
+
 def test_ladder_ties_are_fused_to_pour_nodes():
     net = _ladder()
     # Each external tie key resolves (via merge) to a pour strip node.

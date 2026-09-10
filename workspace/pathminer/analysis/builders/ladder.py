@@ -102,18 +102,24 @@ def build_ladder(
             "point": st.point,
         }
 
-    # Ties, keyed by (layer, point) → (axial projection, external node). A tie
-    # is only meaningful on a layer that is both filled *and* modelled (in
-    # ``order``); strips are built only for such layers, so a tie on any other
-    # layer would fuse into a node that carries no strip edge and silently
-    # disconnect the terminal.
-    tie_pts: dict[tuple, tuple] = {}
+    # Ties grouped by (layer, point). Several external terminals can land on the
+    # same copper point (a footprint's aliased pads, or two pads that coincide);
+    # they are the *same* electrical node, so every one must be preserved and
+    # merged into it - keying by point alone would let a later tie overwrite an
+    # earlier one and silently drop that terminal (it would then fail to solve
+    # with "endpoint not in graph"). A tie is only meaningful on a layer that is
+    # both filled *and* modelled (in ``order``); strips are built only for such
+    # layers, so a tie on any other layer would fuse into a strip-less node.
+    tie_pts: dict[tuple, tuple] = {}   # (layer, point) -> (projection, [ext, ...])
     for t in ties:
         if t.layer in g.fills and t.layer in rank:
-            tie_pts[(t.layer, t.point)] = (g.project(t.point), t.external())
+            key = (t.layer, t.point)
+            proj, exts = tie_pts.get(key, (g.project(t.point), []))
+            exts.append(t.external())
+            tie_pts[key] = (proj, exts)
 
     # Strip stations are every via and tie projection along the axis (v0.13).
-    us = sorted(set(list(via_layers) + [u for (u, _n) in tie_pts.values()]))
+    us = sorted(set(list(via_layers) + [u for (u, _exts) in tie_pts.values()]))
 
     def pnode(layer: str, u: float):
         return ("pour", net_id, layer, round(u, 6))
@@ -173,8 +179,10 @@ def build_ladder(
                 ),
             )
 
-    for (layer, _pt), (u, ext) in tie_pts.items():
-        net.merge(ext, pnode(layer, u))  # same physical copper, one node
-        net.terminals.setdefault(str(ext), ext)
+    for (layer, _pt), (u, exts) in tie_pts.items():
+        node = pnode(layer, u)
+        for ext in exts:
+            net.merge(ext, node)         # same physical copper, one node
+            net.terminals.setdefault(str(ext), ext)
 
     return net
