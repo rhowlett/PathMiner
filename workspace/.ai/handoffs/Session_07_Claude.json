@@ -6,7 +6,7 @@
   "effort": "extra",
   "status": "READY_FOR_REVIEW",
   "base_commit": "27bc7503676067b705a283680726d173bee00038",
-  "final_commit": "1a975b73ad4d5a671e527a74c735bafbe4b621cd",
+  "final_commit": "e4f2fe5b280fb0cee9684b0d5ca64ad3f3ea6e88",
   "branch": "ai/session-07-claude-network-builders",
   "patch_checksum": null,
   "punch_items": [
@@ -65,21 +65,29 @@
     {
       "command": "python3 -m pytest -q tests/test_network.py tests/test_builders.py tests/test_model_selection.py",
       "exit_code": 0,
-      "result": "65 passed",
-      "runtime_seconds": 0.55
+      "result": "71 passed",
+      "runtime_seconds": 0.56
     },
     {
       "command": "python3 -m pytest -q",
       "exit_code": 0,
-      "result": "445 passed (380 baseline + 65 new), 0 skipped",
-      "runtime_seconds": 2.29
+      "result": "451 passed (380 baseline + 71 new), 0 skipped",
+      "runtime_seconds": 2.25
+    },
+    {
+      "command": "python3 -m pytest -q tests/test_import_boundaries.py",
+      "exit_code": 0,
+      "result": "48 passed (ARCH-002 boundary guard green for the new core/analysis files)",
+      "runtime_seconds": 0.17
     }
   ],
   "decisions": [
     "Equipotential ties modelled as union-find node merges (ResistorNetwork.merge + edge_list collapse), not near-zero tie resistors, preserving v0.13's solver-conditioning contract.",
     "The solver's shared _prepare stays the single resistance validator; add_edge does not re-validate, so build->solve raises the same named errors as a raw edge list.",
     "Pure builders take explicit geometry/topology inputs (ViaStation, Tie, a .net/.fills pour), not a BoardSource; BoardSource wiring is a later integration/PWR session, matching where that orchestration lived in v0.13 build_graph_pour.",
-    "Model-selection escalates to the mesh when pour aspect < LADDER_MIN_ASPECT (v0.13's 2:1), when flagged complex, or when geometry is unknown; strip-like pours use the ladder; overrides retain a marker and any warning (S8.7)."
+    "Model-selection escalates to the mesh when pour aspect < LADDER_MIN_ASPECT (v0.13's 2:1), when flagged complex, or when geometry is unknown; strip-like pours use the ladder; overrides retain a marker and any warning (S8.7).",
+    "Ran an automated self-review of the diff (/code-review, medium) and addressed its findings within owned scope; fixes committed in e4f2fe5. Findings whose root cause is outside owned scope (dispatcher returning its backend) or that would break v0.13 numeric parity (mesh bbox over all fill layers) were documented rather than changed.",
+    "Made Edge/Provenance genuinely hashable by excluding the dict detail field from the frozen dataclass hash (they previously advertised hashability but raised TypeError at hash time); consolidated the finished_mm lookup into builders/pour.py and the low-aspect warning string into builders/ladder.low_aspect_warning so the ladder note and model-selection warning cannot drift; surfaced ViaStation.pad_mm into via provenance."
   ],
   "assumptions": [
     "geo passed to builders is the per-copper-layer mapping shape from Stackup.geometry() (name, z_top_mm, finished_mm, z_ctr_mm) that pathminer.core.resistance expects.",
@@ -87,16 +95,21 @@
   ],
   "deviations": [
     "Mesh determinism refinement (numerics-preserving): v0.13's mesh_pour_edges picked a via hub cell and a tie's nearest cell by set iteration order; build_mesh iterates live cells sorted and breaks nearest-cell ties by cell index. All cells a barrel covers merge to one node regardless, so the two-terminal result is unchanged; only node identity becomes reproducible (test_mesh_is_deterministic).",
-    "build_ladder does not itself skip a vialess pour; v0.13 made that decision in build_graph_pour orchestration. The strip/rung/tie numerics are identical for the overlapping case; the 'ignore a vialess pour' policy belongs to the caller."
+    "build_ladder does not itself skip a vialess pour; v0.13 made that decision in build_graph_pour orchestration. The strip/rung/tie numerics are identical for the overlapping case; the 'ignore a vialess pour' policy belongs to the caller.",
+    "Named failure modes added over an opaque crash (preserving/expanding failure modes, not numerics): build_mesh raises ValueError for a non-positive pitch, a zero-extent fill, and a layer missing from the stackup, instead of ZeroDivisionError/StopIteration. A via reaching <2 modelled layers is now skipped in the mesh with the same note the ladder emits (v0.13 emitted this before its ladder/mesh split). ladder ties only into filled AND modelled layers, matching its strip-layer filter. These affect only degenerate/mis-specified inputs; valid networks are numerically unchanged."
   ],
   "known_issues": [
     "Builders are not yet wired to a BoardSource; track-vs-pour clipping, pad-in-pour tie discovery, and via-array clustering (v0.13 build_graph_pour) are the integration layer's job and out of scope.",
     "No routed net-graph builder ('routed traces/vias without zones') is provided; select_model names that case as point_to_point.",
-    "Fast-vs-mesh agreement depends on matching boundary conditions; a single point tie legitimately shows a larger mesh-vs-ladder gap (physical constriction resistance the 1-D ladder cannot represent), which is why the QA-005 fixture distributes the end injection across the pour width."
+    "Fast-vs-mesh agreement depends on matching boundary conditions; a single point tie legitimately shows a larger mesh-vs-ladder gap (physical constriction resistance the 1-D ladder cannot represent), which is why the QA-005 fixture distributes the end injection across the pour width.",
+    "ResistorNetwork.two_terminal mirrors the solver's dense/sparse crossover to report the resolved backend because two_terminal_resistance does not return it; the mirror is commented and cannot drift on the shared DENSE_NODE_LIMIT/HAVE_SCIPY, but the clean fix (dispatcher returns its backend) is in core/solver.py, outside this session's scope.",
+    "TwoTerminalResult.node_count/edge_count report the submitted-graph size (what the crossover uses), not the post-component-restriction sub-network; a network with unrelated islands therefore reports a larger count than was solved. Documented in the docstring; matches the dispatcher's own accounting.",
+    "build_mesh takes the grid bounding box over all fill layers (incl. any not in order), identical to v0.13 mesh_pour_edges; left unchanged to preserve numeric parity. In practice pour fills lie on copper layers all present in order."
   ],
   "dependent_session_impact": [
     "Session 08 (compatibility integration / single-file build) may re-export ResistorNetwork and the builders through the untouched package hubs.",
     "Session 13 (headless runner / factorization reuse, ARCH-007): ResistorNetwork.edge_list() is the stable point to build/factor a graph once per net/model and back-solve pairs.",
+    "Solver-owning session (ARCH-006 follow-up): consider having two_terminal_resistance return its resolved backend so ResistorNetwork.two_terminal reports it directly instead of mirroring the crossover; robustness only, core/solver.py is out of this session's scope.",
     "PWR sessions: model_selection.select_model_for_pour and the three builders are the entry points for the routed/pour analysis runner; ModelChoice carries the reason/override/warnings the result renderer needs."
   ],
   "recommended_next_action": "Coordinator review of the diff and handoff; on approval, integrate at the recorded final commit and open dependent sessions (08, 13, and the PWR wave). Optionally assign the paired ChatGPT prompt as a read-only reviewer of the numerics."

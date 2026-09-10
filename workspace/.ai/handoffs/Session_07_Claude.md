@@ -5,7 +5,8 @@
 - **Role:** implementing writer
 - **Branch:** `ai/session-07-claude-network-builders`
 - **Base commit:** `27bc7503676067b705a283680726d173bee00038` ("chore: integrate Session 06 and assign Session 07")
-- **Final commit:** `1a975b73ad4d5a671e527a74c735bafbe4b621cd`
+- **Final commit:** `e4f2fe5b280fb0cee9684b0d5ca64ad3f3ea6e88`
+  (implementation `1a975b73ad4d5a671e527a74c735bafbe4b621cd`; self-review fixes `e4f2fe5b280fb0cee9684b0d5ca64ad3f3ea6e88`)
 - **Status:** READY_FOR_REVIEW
 
 ## Objective (met)
@@ -75,13 +76,57 @@ Only the coordinator may mark the session INTEGRATED.
 
 | Command | Exit | Result | Runtime |
 |---|---|---|---|
-| `python3 -m pytest -q tests/test_network.py tests/test_builders.py tests/test_model_selection.py` | 0 | 65 passed | ~0.55 s |
-| `python3 -m pytest -q` (full regression) | 0 | 445 passed (380 baseline + 65 new) | ~2.29 s |
+| `python3 -m pytest -q tests/test_network.py tests/test_builders.py tests/test_model_selection.py` | 0 | 71 passed | ~0.56 s |
+| `python3 -m pytest -q` (full regression) | 0 | 451 passed (380 baseline + 71 new) | ~2.25 s |
+| `python3 -m pytest -q tests/test_import_boundaries.py` (ARCH-002 guard) | 0 | 48 passed | ~0.17 s |
 
 Environment: SciPy 1.18.1 / NumPy 2.5.2 present (the mesh fixtures exercise the
 sparse SciPy backend via the dispatcher; the pure-Python CG path is the fallback
 when SciPy is absent and is what the `backend` field would report then).
 No tests were skipped in this run. No unrun test is reported as passing.
+
+## Self-review pass (findings addressed)
+
+An automated review of the diff was run (`/code-review`, medium). All 65 (now
+71) tests passed; the findings were edge cases the happy path did not exercise.
+Addressed in the fix commit, all within owned scope:
+
+- **Hashability contract:** `Edge`/`Provenance` were `frozen=True` (advertising
+  hashability) but held a dict `detail`, so `hash()` raised `TypeError`. `detail`
+  is now excluded from the generated hash; both are genuinely hashable. Equality
+  still compares `detail`. (Test: `test_network.py::test_provenance_and_edge_are_hashable_despite_dict_detail`.)
+- **Mesh failure modes:** a non-positive pitch and a zero-extent fill now raise
+  named `ValueError`s (were `ZeroDivisionError`); a modelled layer missing from
+  the stackup raises the same `"layer ... not in the stackup"` `ValueError` the
+  other builders raise (was an opaque `StopIteration`). (Tests in
+  `test_builders.py`.)
+- **Cross-builder consistency:** the mesh now skips a via reaching fewer than two
+  modelled layers with the same note the ladder emits (matching v0.13 before its
+  ladder/mesh split); the ladder now ties in only on layers that are both filled
+  and modelled, matching its own strip-layer filter, so a tie cannot fuse into a
+  strip-less node.
+- **De-duplication (within this session's own new code):** the `finished_mm`
+  layer lookup is consolidated into `builders/pour.py`; the low-aspect warning
+  string is consolidated into `builders/ladder.low_aspect_warning`, used by both
+  the ladder note and the model-selection warning so their wording cannot drift.
+- **Provenance completeness:** `ViaStation.pad_mm` now flows into via-edge
+  provenance detail (it was carried but unused).
+
+Findings left as documented decisions rather than code changes:
+
+- **Backend-choice mirror (root cause in `solver.py`, out of scope):**
+  `ResistorNetwork.two_terminal` re-derives the dense/sparse crossover to report
+  the resolved backend because `two_terminal_resistance` does not return it. This
+  mirror is commented; the clean fix (dispatcher returns its resolved backend)
+  belongs to the solver's owning session — see Dependent-session impact.
+- **`node_count`/`edge_count` are submitted-graph counts:** they report the graph
+  handed to the solver (which is exactly what the crossover uses), not the
+  post-component-restriction sub-network. Clarified in the docstring; this
+  matches the dispatcher's own accounting.
+- **Mesh bbox spans all fill layers:** the grid bounding box is taken over every
+  fill layer (including any not in `order`), identical to v0.13's
+  `mesh_pour_edges`. Left unchanged to preserve v0.13 numerical parity; in
+  practice pour fills lie on copper layers that are all in `order`.
 
 ## Decisions
 
@@ -149,6 +194,11 @@ No tests were skipped in this run. No unrun test is reported as passing.
 - **Session 13 (headless runner / factorization reuse, ARCH-007):**
   `ResistorNetwork.edge_list()` is the stable hand-off point for building/factor
   a graph once per net/model and back-solving pairs.
+- **Solver-owning session (ARCH-006 follow-up):** consider having
+  `two_terminal_resistance` return its resolved backend so
+  `ResistorNetwork.two_terminal` reports it directly instead of mirroring the
+  crossover. Purely a robustness/no-drift improvement; `core/solver.py` is
+  outside this session's write scope.
 - **PWR sessions:** `model_selection.select_model_for_pour` and the three
   builders are the intended entry points for the routed/pour analysis runner;
   `ModelChoice` carries the reason/override/warnings the result renderer needs.
