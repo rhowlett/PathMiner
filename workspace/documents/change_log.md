@@ -1,4 +1,4 @@
-<!-- v0.3 -->
+<!-- v0.4 -->
 # PathMiner — change log
 
 ## Versioning rules
@@ -114,8 +114,63 @@ frozen golden fixtures exactly, unchanged from the pre-session baseline; `python
 tools/build_single_file.py --check` — PASS (also re-run with `--board` against the real IP5385
 board: 284/284 on both sides).
 
-**Deliberately out of scope** (not this session's punch items; see `.ai/handoffs/Session_08_Claude.md`
-decisions): `pathminer.core.materials`/`units`/`resistance` (PWR-001, left open by Session 03 pending
-the modules this session's prerequisites do not include for that item), and the KiCad/board/network
-duplication in this file (`BoardNets`, `build_graph_pour`, `mesh_pour_edges`, `Pour`, GUI classes),
-which is not this session's assigned scope and was left untouched.
+**Deliberately narrowed scope, flagged for coordinator confirmation** (see the corrected handoff):
+`pathminer.core.materials`/`units`/`resistance` (PWR-001) and the KiCad/board/network duplication in
+this file (`BoardNets`, `build_graph_pour`, `mesh_pour_edges`, `Pour`, GUI classes) were left
+untouched. This was decided unilaterally against the punch-list responsibility line ("Contributes
+to or extends: None"), read as outranking the session Objective's broader "integrate extracted
+modules" wording; a coordinator-review finding correctly noted that priority is not itself stated
+in the prompt and asked that the remaining integration be explicitly tracked/assigned rather than
+silently left. Recorded here as an open question for the coordinator, not a settled fact.
+
+---
+
+## 2026-09-11 — Session 08 coordinator-review repair
+
+| File | Version | Change |
+|---|---|---|
+| tools/build_single_file.py | v0.2 | Fix: `--check` could report a false PASS when both the split facade's and the generated file's `--selftest` failed identically (e.g. both "0/1 checks passed", exit 1), or raise `TypeError` on an unparseable summary. Each side is now validated as actually passing (exit 0, parseable summary, `passed == total`, every vector `PASS`) before the two runs are compared against each other. |
+| tests/test_compatibility.py | v0.2 | Strengthened ARCH-010 evidence from a shared-prefix check to an exact-identity check (V11 imported from `tests/test_solver.py`'s own `V11_CASES`; V13/V14 hand-transcribed and explicitly documented as such) that would catch a renamed or removed vector. Added three regression tests for the `build_single_file.check()` fix (both-sides-fail, unparseable-summary, one-side-only-fails). |
+| documents/change_log.md | v0.4 | This entry |
+
+**Why:** a coordinator/reviewer pass on the Session 08 diff and handoff found four issues, addressed
+as follows —
+
+1. **Generated-file check could falsely pass.** Reproduced exactly as reported (both simulated
+   selftests at "0/1 checks passed", exit 1, `--check` still printed PASS and returned 0). Fixed in
+   `tools/build_single_file.py`'s `check()`: each side's own `--selftest` run is now validated in
+   full (exit code, a parseable summary, `passed == total`, no FAIL vector) before any comparison
+   between the two runs happens, and a missing/unparseable summary now fails cleanly instead of
+   raising `TypeError`. Three new regression tests pin this in `tests/test_compatibility.py`.
+2. **Incorrect handoff base commit.** `.ai/handoffs/Session_08_Claude.md`/`.json` named the
+   `SESSION_STATUS.csv`-recorded prerequisite commit (`6c5f4f6`) as the session's base commit, but
+   the implementation commit's actual git parent — and the correct "record `git rev-parse HEAD`
+   before editing" value per the session prompt's Preconditions — is `90482b5` (that same commit
+   plus the coordinator's own metadata-only "integrate Session 07 / assign Session 08" ledger edit).
+   Both handoff files corrected; no history was rewritten, and no owned-scope file differs between
+   the two commits.
+3. **ARCH-010 closure evidence was too weak.** The original test only checked that *some* passing
+   vector names started with `V11`/`V13`/`V14`, which would miss a renamed or silently dropped
+   individual vector. `tests/test_compatibility.py` now compares the aggregate selftest's V11/V13/V14
+   names against the module tests' own identities as an exact set (V11 read directly from
+   `tests/test_solver.py`'s `V11_CASES`; V13/V14 transcribed by hand from that file's and
+   `tests/test_geometry.py`'s inline comments, since neither keeps those identities in an importable
+   structure — documented at the point of transcription). V20 remains explicitly excluded and
+   explained (no fixture board in this repository supplies the `/SDA` net its check requires; see
+   `tests/baseline/README.md`, predating this session). ARCH-010 remains presented as **closed** on
+   this strengthened evidence.
+4. **Integration-scope narrowing needs coordinator confirmation.** The original handoff presented
+   "wire only ARCH-006/ARCH-010's solver+geometry slice, not PWR-001 or KiCad/board/network" as a
+   settled decision. That reading (the punch-list responsibility line overriding the Objective's
+   broader wording) is reasonable but is *not itself stated as a priority rule* in the prompt, so it
+   is now recorded as a flagged, unresolved scope question rather than a foregone conclusion — see
+   both handoff files' updated Decisions/Recommended-next-action sections, which ask the coordinator
+   to either confirm this scoping or assign the remaining integration (PWR-001; KiCad/board/network)
+   explicitly.
+
+**Re-verification after the fix.** `python3 -m pytest -q` — **470 passed** (458 baseline + 12 in
+`tests/test_compatibility.py`, up from 9); `python3 tools/pcb_trace_resistance.py --selftest` —
+118/118; `QT_QPA_PLATFORM=offscreen python3 tests/baseline/regression_compare.py all` — all three
+canonical suites still PASS, unchanged; `python3 tools/build_single_file.py --check` (headless and
+`--board` against the real IP5385 board) — PASS, 118/118 and 284/284 on both sides, using the
+*corrected* (no-longer-falsifiable) check logic.

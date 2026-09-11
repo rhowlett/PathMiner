@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# v0.1
+# v0.2
 """tools/build_single_file.py — generate the single-file PathMiner distribution.
 
 Session 08 (BASE-004: "preserve a generated single-file distribution. Add
@@ -36,14 +36,17 @@ Usage:
     python3 tools/build_single_file.py --check --board BOARD.kicad_pcb
 
 --check generates the file to a temporary path and runs ``--selftest`` on it
-and on the split facade, each in its own subprocess, then compares the two
-runs' named vectors (``[PASS]/[FAIL] <name>``) and pass/fail totals for an
-exact match — the generated-file parity BASE-004 requires. Raw ``got``/
-``want`` text is not compared byte-for-byte because a few vectors (V19, V23)
-legitimately print a fresh temp-directory path on every run; the pass/fail
-identity per named vector is what "passes the same aggregate self-test"
-means, and it is what ``tests/baseline/regression_compare.py`` also checks
-against the frozen golden fixtures.
+and on the split facade, each in its own subprocess. Each side must, on its
+own, exit 0, print a parseable "N/N checks passed" summary, and have every
+vector PASS — "the generated file passes the same aggregate self-test" means
+both actually pass, not merely that they fail identically to each other — and
+only then are the two runs' named vectors (``[PASS]/[FAIL] <name>``) and
+totals compared for an exact match. Raw ``got``/``want`` text is not compared
+byte-for-byte because a few vectors (V19, V23) legitimately print a fresh
+temp-directory path on every run; the pass/fail identity per named vector is
+what "the same aggregate self-test" means, and it is what
+``tests/baseline/regression_compare.py`` also checks against the frozen
+golden fixtures.
 """
 from __future__ import annotations
 
@@ -152,50 +155,75 @@ def _parse_selftest(stdout: str):
     return vectors, summary
 
 
+def _validate_own_selftest(label: str, result: "subprocess.CompletedProcess",
+                            vectors, summary) -> list[str]:
+    """Return problems (empty if none) with *one side's* own --selftest run.
+
+    "The generated file passes the same aggregate self-test as the package"
+    (BASE-004) requires each side to actually pass on its own — exit 0, a
+    parseable "N/N checks passed" summary, at least one vector, and every
+    vector PASS — before the two sides are even compared against each other.
+    Without this, two runs that fail *identically* (e.g. both "0/1 checks
+    passed", exit 1) would otherwise agree with each other and be reported
+    as a false PASS."""
+    problems = []
+    if result.returncode != 0:
+        problems.append(f"{label}'s own --selftest did not pass (exit code {result.returncode})")
+    if summary is None:
+        problems.append(f"{label}'s --selftest did not print a parseable "
+                         f"'N/N checks passed' summary line")
+    elif summary[0] != summary[1]:
+        problems.append(f"{label}'s --selftest reported {summary[0]}/{summary[1]} "
+                         f"checks passed, not all of them")
+    if not vectors:
+        problems.append(f"{label}'s --selftest reported no parseable [PASS]/[FAIL] vectors")
+    elif any(status != "PASS" for _name, status in vectors):
+        failed = [n for n, s in vectors if s != "PASS"]
+        problems.append(f"{label}'s --selftest reported {len(failed)} FAIL vector(s), "
+                         f"e.g. {failed[:5]!r}")
+    return problems
+
+
 def check(board: str | None) -> int:
     """Generated-file parity (BASE-004): the generated single file's
-    ``--selftest`` must report the same named vectors, in the same pass/fail
-    state, as the split facade's own ``--selftest``."""
+    ``--selftest`` must itself pass, and report the same named vectors in
+    the same pass/fail state, as the split facade's own (also-passing)
+    ``--selftest``."""
     with tempfile.TemporaryDirectory(prefix="pathminer_single_file_") as tmp:
         generated_path = write_file(Path(tmp) / "pcb_trace_resistance_single_file.py")
         split = _run_selftest(FACADE_PATH, board)
         single = _run_selftest(generated_path, board)
 
-    if split.returncode not in (0, 1):
-        print("FAIL: the split facade's --selftest errored (usage/crash), "
-              "nothing to compare against:", file=sys.stderr)
-        print(split.stdout, file=sys.stderr)
-        print(split.stderr, file=sys.stderr)
-        return 2
-
     split_vectors, split_summary = _parse_selftest(split.stdout)
     single_vectors, single_summary = _parse_selftest(single.stdout)
 
-    problems = []
-    if single.returncode != split.returncode:
-        problems.append(
-            f"exit code differs: split={split.returncode} single-file={single.returncode}")
-    if not split_vectors:
-        problems.append("could not parse any selftest vectors from the split facade's output")
-    if split_summary != single_summary:
-        problems.append(f"totals differ: split={split_summary} single-file={single_summary}")
-    if split_vectors != single_vectors:
-        split_map = dict(split_vectors)
-        single_map = dict(single_vectors)
-        only_split = [n for n in split_map if n not in single_map]
-        only_single = [n for n in single_map if n not in split_map]
-        differ = [n for n in split_map if n in single_map and split_map[n] != single_map[n]]
-        if only_split:
-            problems.append(f"{len(only_split)} vector(s) missing from the single file, "
-                             f"e.g. {only_split[:5]!r}")
-        if only_single:
-            problems.append(f"{len(only_single)} vector(s) only in the single file, "
-                             f"e.g. {only_single[:5]!r}")
-        if differ:
-            problems.append(f"{len(differ)} vector(s) differ in PASS/FAIL, "
-                             f"e.g. {differ[:5]!r}")
-        if not (only_split or only_single or differ):
-            problems.append("vector order differs between the two runs")
+    problems = _validate_own_selftest("the split facade", split, split_vectors, split_summary)
+    problems += _validate_own_selftest("the generated single file", single,
+                                       single_vectors, single_summary)
+
+    # Only compare the two runs against each other once each has been
+    # confirmed to actually pass on its own; otherwise a missing summary or a
+    # shared failure could make the comparisons below misleadingly agree.
+    if not problems:
+        if split_summary != single_summary:
+            problems.append(f"totals differ: split={split_summary} single-file={single_summary}")
+        if split_vectors != single_vectors:
+            split_map = dict(split_vectors)
+            single_map = dict(single_vectors)
+            only_split = [n for n in split_map if n not in single_map]
+            only_single = [n for n in single_map if n not in split_map]
+            differ = [n for n in split_map if n in single_map and split_map[n] != single_map[n]]
+            if only_split:
+                problems.append(f"{len(only_split)} vector(s) missing from the single file, "
+                                 f"e.g. {only_split[:5]!r}")
+            if only_single:
+                problems.append(f"{len(only_single)} vector(s) only in the single file, "
+                                 f"e.g. {only_single[:5]!r}")
+            if differ:
+                problems.append(f"{len(differ)} vector(s) differ in PASS/FAIL, "
+                                 f"e.g. {differ[:5]!r}")
+            if not (only_split or only_single or differ):
+                problems.append("vector order differs between the two runs")
 
     if problems:
         print("FAIL: generated single file does not pass the same aggregate "
