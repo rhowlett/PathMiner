@@ -1,4 +1,4 @@
-<!-- v0.2 -->
+<!-- v0.3 -->
 # PathMiner — change log
 
 ## Versioning rules
@@ -68,3 +68,54 @@ now applies that same tolerance recursively to segment floats while continuing t
 order, keys, layer names, kinds, flags, and integer counts exactly. It also verifies the live board
 and net-selection SHA-256 values before accepting a report, so a wrong or changed input cannot be
 hidden by the numerical tolerance. The golden fixtures themselves were not changed.
+
+---
+
+## 2026-09-11 — Session 08: compatibility integration and single-file build
+
+| File | Version | Change |
+|---|---|---|
+| tools/pcb_trace_resistance.py | v0.14 | Legacy compatibility facade: solver dispatcher and pure-geometry helpers now alias `pathminer.core.solver` / `pathminer.core.geometry` instead of duplicating them |
+| tools/build_single_file.py | v0.1 | New. Generates a self-contained single-file distribution by inlining `pathminer.core.geometry`/`solver` into the facade |
+| pathminer/__init__.py | v0.2 | Docstring: record the Session 08 facade wiring |
+| pathminer/core/__init__.py | v0.2 | Docstring: record that `geometry.py`/`solver.py` are now also consumed by the legacy facade |
+| tests/test_compatibility.py | v0.1 | New. Facade-wiring, dispatcher-agreement, aggregate/module vector-identity, and generated-file-parity tests |
+| documents/change_log.md | v0.3 | This entry |
+
+**Why:** closes the session's three owned punch items —
+
+- **BASE-004** ("preserve a generated single-file distribution... the generated file passes the
+  same aggregate self-test as the package"): `tools/build_single_file.py` inlines
+  `pathminer/core/geometry.py` and `pathminer/core/solver.py` (found by sentinel comments around
+  the facade's `pathminer.core` bootstrap) into a self-contained script with no import-time
+  dependency on the `pathminer` package. `--check` regenerates it and diffs its `--selftest`
+  vector-by-vector against the split facade's; both report 118/118 headless and 284/284 on the
+  real IP5385 board, byte-for-byte the same pass/fail per named vector.
+- **ARCH-006** ("consolidate solvers behind one dispatcher... backend agreement is asserted on the
+  same networks"): the facade's `_solve_dense`, `solve_cg`, `_solve_scipy`, `DENSE_NODE_LIMIT`,
+  `HAVE_SCIPY`, `calibrate_solver`, and `estimate_seconds` are now the same objects as
+  `pathminer.core.solver`'s (asserted with `is` in `tests/test_compatibility.py`), and
+  `network_resistance` — the legacy dispatcher every call site in this file already used — now
+  builds an edge list and delegates the actual solve to
+  `pathminer.core.solver.two_terminal_resistance`, forcing the same dense/sparse crossover this
+  function always used so its numerics are unchanged.
+- **ARCH-010** ("split the self-test by module while retaining stable vector IDs... module tests
+  and the aggregate `--selftest` report the same acceptance-vector identities"): Session 04 already
+  retained the V11/V13/V14/V20 identities in `tests/test_solver.py` / `tests/test_geometry.py`;
+  `tests/test_compatibility.py` now asserts the aggregate `--selftest` reports those same
+  identities, all passing, alongside the pathminer.core solver/geometry objects the aggregate run
+  actually now calls.
+
+**Numerical behavior preserved exactly.** No formula, tolerance, or default changed. Verification:
+`python3 -m pytest -q` — 467 passed (458 baseline + 9 new); `python3 tools/pcb_trace_resistance.py
+--selftest` — 118/118; `python3 tests/baseline/regression_compare.py all` — all three canonical
+suites (118 headless + 284 real-board selftest vectors, 11-pair IP5385 batch report) match the
+frozen golden fixtures exactly, unchanged from the pre-session baseline; `python3
+tools/build_single_file.py --check` — PASS (also re-run with `--board` against the real IP5385
+board: 284/284 on both sides).
+
+**Deliberately out of scope** (not this session's punch items; see `.ai/handoffs/Session_08_Claude.md`
+decisions): `pathminer.core.materials`/`units`/`resistance` (PWR-001, left open by Session 03 pending
+the modules this session's prerequisites do not include for that item), and the KiCad/board/network
+duplication in this file (`BoardNets`, `build_graph_pour`, `mesh_pour_edges`, `Pour`, GUI classes),
+which is not this session's assigned scope and was left untouched.

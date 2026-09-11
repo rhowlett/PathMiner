@@ -1,9 +1,18 @@
-# v0.1
+# v0.2
 """PathMiner — PCB power-path and resistance analysis package.
 
 This is the package root.  Code is being extracted from
 ``tools/pcb_trace_resistance.py`` (v0.13) in subsequent sessions.
 Sub-packages are empty stubs at this point in the refactor (Session 02).
+
+Session 08 (BASE-004, ARCH-006, ARCH-010) turned ``tools/pcb_trace_resistance.py``
+into a compatibility facade over the modules extracted so far: its numerical
+solver dispatcher and pure planar-geometry helpers are now aliases onto
+``pathminer.core.solver`` / ``pathminer.core.geometry`` (Sessions 03/04/07)
+rather than duplicated copies, and ``tools/build_single_file.py`` regenerates
+a self-contained single-file distribution from that facade. KiCad parsing,
+board modelling, network/builder wiring, and the GUI remain independent in
+the legacy script pending their own integration sessions.
 
 Package layer contract (ARCH-001 / ARCH-002):
 
