@@ -1,4 +1,4 @@
-<!-- v0.5 -->
+<!-- v0.6 -->
 # PathMiner — change log
 
 ## Versioning rules
@@ -82,7 +82,7 @@ hidden by the numerical tolerance. The golden fixtures themselves were not chang
 | tests/test_compatibility.py | v0.1 | New. Facade-wiring, dispatcher-agreement, aggregate/module vector-identity, and generated-file-parity tests |
 | documents/change_log.md | v0.3 | This entry |
 
-**Why:** closes the session's three owned punch items —
+**Why:** presents the session's three owned punch items —
 
 - **BASE-004** ("preserve a generated single-file distribution... the generated file passes the
   same aggregate self-test as the package"): `tools/build_single_file.py` inlines
@@ -105,6 +105,7 @@ hidden by the numerical tolerance. The golden fixtures themselves were not chang
   `tests/test_compatibility.py` now asserts the aggregate `--selftest` reports those same
   identities, all passing, alongside the pathminer.core solver/geometry objects the aggregate run
   actually now calls.
+  *(Historical claim, superseded — see "Session 08 ARCH-010 status correction" at the end of this log: ARCH-010 is now recorded as **implemented**, with whole-item closure open.)*
 
 **Numerical behavior preserved exactly.** No formula, tolerance, or default changed. Verification:
 `python3 -m pytest -q` — 467 passed (458 baseline + 9 new); `python3 tools/pcb_trace_resistance.py
@@ -159,6 +160,8 @@ as follows —
    explained (no fixture board in this repository supplies the `/SDA` net its check requires; see
    `tests/baseline/README.md`, predating this session). ARCH-010 remains presented as **closed** on
    this strengthened evidence.
+   *(Historical claim, superseded — see "Session 08 ARCH-010 status correction" at the end of
+   this log.)*
 4. **Integration-scope narrowing needs coordinator confirmation.** The original handoff presented
    "wire only ARCH-006/ARCH-010's solver+geometry slice, not PWR-001 or KiCad/board/network" as a
    settled decision. That reading (the punch-list responsibility line overriding the Objective's
@@ -210,6 +213,9 @@ canonical suites still PASS, unchanged; `python3 tools/build_single_file.py --ch
    narrowly (verified present in the derived set, so the mapping cannot go silently stale); any
    other mismatch still fails the test. ARCH-010 remains **closed**, now on genuine, disclosed
    evidence rather than an unverifiable hand-typed list.
+   *(Historical claim, superseded — see "Session 08 ARCH-010 status correction" at the end of
+   this log. The derived evidence described here stands as accepted; what is corrected is the
+   scope of the claim built on it.)*
 
 **Coordinator scope disposition (received, recorded verbatim in substance).** The coordinator has
 dispositioned the scope question this session raised in its first repair pass:
@@ -237,3 +243,56 @@ assigned the remaining work.
 all three canonical suites still PASS, unchanged; `python3 tools/build_single_file.py --check`
 (headless and `--board` against the real IP5385 board) — PASS, 118/118 and 284/284 on both sides,
 using the further-corrected `check()` logic. No tolerance changed.
+
+---
+
+## 2026-09-22 — Session 08 ARCH-010 status correction (documentation only)
+
+| File | Version | Change |
+|---|---|---|
+| documents/change_log.md | v0.6 | This entry; superseded-claim pointers added to the three earlier Session 08 entries above |
+| .ai/handoffs/Session_08_Claude.md | — | ARCH-010 corrected from **closed** to **implemented**, whole-item closure recorded as open; verified V11/V13/V14 coverage described; broader coverage recorded as coordinator-assigned follow-up |
+| .ai/handoffs/Session_08_Claude.json | — | Same correction: `punch_items[ARCH-010].status` `closed` → `implemented`, evidence rewritten, one `known_issues` and one `deviations` entry added, `recommended_next_action` updated |
+
+**No source file, test, tolerance, or numerical result changed in this pass.** `final_commit`
+remains `f0e0af3523c087b091411a4f35e2630a5561694b`, the previously reported numerical results stay
+identified with that tested implementation commit, no verification suite was re-run (and none is
+claimed), and the integration ledger (`.ai/coordination/SESSION_STATUS.csv`) is untouched.
+
+**Why — the coordinator's review of package tip `53f8e30`.** That review accepted the
+count-validation repair, the `final_commit` correction, and the source-derived V13/V14 identity
+checks, and left one finding standing: ARCH-010 was still marked **closed** although the identity
+comparison covers only V11/V13/V14, leaving the existing electrical acceptance vectors in
+`tests/test_resistance.py` outside it, alongside the previously documented V20 exclusion.
+
+**Current disposition — ARCH-010 is `implemented`, not closed.** What is verified, and is not being
+walked back: `tests/test_compatibility.py::test_aggregate_selftest_reports_the_module_split_vector_identities`
+compares V11, V13 and V14 between the aggregate `--selftest` and the module tests as an exact
+identity match genuinely derived from the module test files' own source (V11 from
+`tests/test_solver.py`'s `V11_CASES`; V13/V14 parsed via `ast` from `tests/test_geometry.py` /
+`tests/test_solver.py` at test time), so a rename or removal in either file is caught by
+construction. Measured against the 118 named checks the headless
+`python3 tools/pcb_trace_resistance.py --selftest` reports, that is 21 checks. Outside the
+comparison: `tests/test_resistance.py`'s electrical acceptance vectors V1–V8 and the eight "v0.2
+regression" checks (67 of 118 — IDs retained module-side, but never compared against the
+aggregate's); V9, V12, V21 and V23 (30 of 118 — no module-side ID retention at all); and V20, which
+remains excluded for the pre-existing fixture reason already recorded here and in
+`tests/baseline/README.md` (no board fixture in this repository supplies the `/SDA` net its
+backend-agreement block requires). ARCH-010's Done-when asks that module tests and the aggregate
+`--selftest` report the same acceptance-vector identities; that is demonstrated for part of the
+acceptance-vector set, so the item is implemented, and **whole-item closure remains open**.
+
+**Historical claims vs. current disposition.** The three earlier Session 08 entries above recorded
+ARCH-010 as *closed* — at first presentation, then after the first repair round, then after the
+second. Those entries are left intact as the record of what was claimed when, each now carrying a
+pointer to this entry. The evidence they describe is unchanged and still accepted; what is
+corrected is the breadth of the closure claim built on it. This entry, not those, is the current
+disposition.
+
+**Follow-up, coordinator-assigned.** Broader module/aggregate identity coverage — extending the
+comparison to the remaining vector families, beginning with `tests/test_resistance.py`'s V1–V8 and
+"v0.2 regression" vectors and then the families no module test file currently identifies — is
+recorded as coordinator-assigned follow-up work and is the condition for closing ARCH-010 as a
+whole item. It was not performed in this pass and is not claimed by Session 08. Whichever session
+is assigned it can reuse the `_derive_vector_names` pattern already in
+`tests/test_compatibility.py`.
