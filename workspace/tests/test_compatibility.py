@@ -1,4 +1,4 @@
-# v0.2
+# v0.3
 """tests/test_compatibility.py — Session 08 compatibility-facade tests.
 
 Session 08 (closure owner of BASE-004, ARCH-006, ARCH-010) turns
@@ -30,6 +30,7 @@ What is unique to this module:
 """
 from __future__ import annotations
 
+import ast
 import importlib.util
 import re
 import subprocess
@@ -45,39 +46,64 @@ from pathminer.core import solver as pm_solver
 REPO_ROOT = Path(__file__).resolve().parent.parent
 FACADE_PATH = REPO_ROOT / "tools" / "pcb_trace_resistance.py"
 BUILD_SCRIPT_PATH = REPO_ROOT / "tools" / "build_single_file.py"
+TEST_GEOMETRY_PATH = REPO_ROOT / "tests" / "test_geometry.py"
+TEST_SOLVER_PATH = REPO_ROOT / "tests" / "test_solver.py"
 
 # Report-line parser matching selftest()'s own print format
 # ("  [PASS] <name>  got <g>  want <w>"); see tools/pcb_trace_resistance.py.
 _REPORT_LINE = re.compile(r"\[(PASS|FAIL)\]\s+(.*?)\s{2,}got\b")
 
-# Exact V13/V14 acceptance-vector identities split into
-# tests/test_geometry.py / tests/test_solver.py (Session 04). Neither module
-# keeps these names in an importable data structure (test_geometry.py's V13
-# names live only in inline "# V13 ..." comments; test_solver.py's V14 names
-# live only in its two test function names), so - unlike V11 below, which is
-# imported directly from tests/test_solver.py's own V11_CASES - these are
-# hand-transcribed from those comments and from the aggregate selftest's own
-# chk() call sites. A rename or removal on either side without updating this
-# list is exactly the drift test_aggregate_selftest_reports_the_module_split_
-# vector_identities exists to catch.
-EXPECTED_V13_NAMES = frozenset({
-    "V13 point inside",
-    "V13 point outside",
-    "V13 point on edge counts as inside",
-    "V13 pour length",
-    "V13 pour width",
-    "V13 pour aspect",
-    "V13 axis is x",
-    "V13 clip outside length",
-    "V13 clip inside length",
-    "V13 clusters found",
-    "V13 array centroid",
-    "V13 array extent",
-})
-EXPECTED_V14_NAMES = frozenset({
-    "V14 single centroid rung gives no parallel benefit",
-    "V14 two separated rungs do help",
-})
+# Known, narrow textual variance between tests/test_geometry.py's inline
+# comments and the aggregate selftest's stable chk() names - NOT a numeric or
+# behavioral difference. test_v13_clip_lengths (tests/test_geometry.py)
+# annotates its two assertions "# V13 clip outside" / "# V13 clip inside",
+# while tools/pcb_trace_resistance.py's selftest() names the same two checks
+# "V13 clip outside length" / "V13 clip inside length" (both assert the
+# identical value, 0.5, at the identical 1e-9 tolerance, against the same
+# clip_segment_to_polygon/clip_track_to_pour alias - see
+# test_facade_geometry_helpers_are_the_pathminer_core_objects). Confirmed by
+# genuine derivation (_derive_vector_names below, which reads the real
+# tests/test_geometry.py source rather than a hand-typed list) to be the
+# *only* discrepancy across V11/V13/V14. tests/test_geometry.py is outside
+# this session's owned write scope, so its comment cannot be corrected here;
+# recorded as a known follow-up in the handoff instead of silently patched
+# over or hidden by a looser comparison. If any *other* mismatch appears,
+# the identity test below still fails - this mapping is exact, not a fuzzy
+# match.
+_V13_KNOWN_COMMENT_WORDING_GAPS = {
+    "V13 clip outside": "V13 clip outside length",
+    "V13 clip inside": "V13 clip inside length",
+}
+
+
+def _derive_vector_names(source: str, prefix: str) -> frozenset[str]:
+    """Derive the acceptance-vector identities a module test file encodes for
+    *prefix* (e.g. "V13"), read from that file's own source - not hand-typed
+    here - so a rename, addition, or removal in the module test is caught by
+    construction rather than requiring a parallel list to be kept in sync.
+
+    Walks every ``def test_<prefix.lower()>_...`` function. If its body
+    carries one or more trailing ``# <PREFIX> ...`` comments on an assertion
+    line, those are the vector identities it encodes (one test function can
+    cover several named checks, as ``test_v13_principal_axis_of_strip`` does
+    for pour length/width/aspect/axis). If it carries none, the function name
+    itself is mechanically the vector identity
+    (``test_v13_point_inside`` -> ``"V13 point inside"``)."""
+    inline_re = re.compile(rf"#\s*({re.escape(prefix)}\b[^\n]*)")
+    tree = ast.parse(source)
+    lines = source.splitlines()
+    fn_prefix = f"test_{prefix.lower()}_"
+    names: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.FunctionDef) and node.name.startswith(fn_prefix):
+            body_lines = lines[node.lineno - 1: node.end_lineno]
+            inline = [m.group(1).strip() for ln in body_lines for m in inline_re.finditer(ln)]
+            if inline:
+                names.update(inline)
+            else:
+                tail = node.name[len(fn_prefix):]
+                names.add(f"{prefix} " + tail.replace("_", " "))
+    return frozenset(names)
 
 
 def _load_module_from_path(name: str, path: Path):
@@ -240,14 +266,32 @@ def test_aggregate_selftest_reports_the_module_split_vector_identities(
         facade, test_solver_reference):
     """ARCH-010 Done-when: "module tests and the aggregate --selftest report
     the same acceptance-vector identities." Checked as an *exact* identity
-    match, not merely a shared prefix, so a renamed, removed, or added vector
-    on either side is caught: the aggregate --selftest's V11/V13/V14 names
-    must equal exactly (as sets) the module tests' own vector identities
-    (V11 imported directly from tests/test_solver.py's V11_CASES; V13/V14
-    hand-transcribed from that file's and tests/test_geometry.py's inline
-    "# V13 ..." comments and test function names, since neither keeps V13/V14
-    identities in an importable data structure - see the module-level
-    EXPECTED_V13_NAMES/EXPECTED_V14_NAMES comment).
+    match, not merely a shared prefix, and *genuinely derived from the module
+    tests' own source* rather than a hand-typed parallel list (coordinator
+    review correctly found the previous version's hand-transcribed V13/V14
+    names did not actually demonstrate module-side identity coverage - a
+    typo or drift in the hand-typed list could not have been caught by the
+    list checking itself):
+
+        * V11 is imported directly from tests/test_solver.py's own
+          V11_CASES data - a rename/removal there changes what this test
+          compares against automatically.
+        * V13/V14 have no such importable structure in
+          tests/test_geometry.py / tests/test_solver.py (only inline
+          "# V13 ..." comments and test function names), so
+          ``_derive_vector_names`` parses each file's actual source at test
+          time (via ``ast``) and reads the real identities off it - not a
+          list retyped by hand that could silently go stale.
+
+    This derivation surfaced one genuine, narrow discrepancy:
+    tests/test_geometry.py's inline comments for the clip-length checks say
+    "clip outside"/"clip inside" (missing the word "length" that the
+    aggregate's stable chk() names carry). Both sides assert the identical
+    value at the identical tolerance (see
+    _V13_KNOWN_COMMENT_WORDING_GAPS's docstring) - a comment-wording gap in a
+    file outside this session's owned write scope, not a behavioral one - so
+    it is mapped explicitly and narrowly, not silently absorbed by a looser
+    comparison: any *other* mismatch still fails this test.
 
     V20 (also tests/test_solver.py) is explicitly *not* checked here: its
     backend-agreement block in the aggregate selftest (``_v20``) only runs
@@ -265,10 +309,24 @@ def test_aggregate_selftest_reports_the_module_split_vector_identities(
     expected_v11 = frozenset(case[0] for case in test_solver_reference.V11_CASES)
     assert len(expected_v11) == 7, "unexpected V11_CASES count in tests/test_solver.py"
 
+    geometry_source = TEST_GEOMETRY_PATH.read_text(encoding="utf-8")
+    solver_source = TEST_SOLVER_PATH.read_text(encoding="utf-8")
+
+    derived_v13_raw = _derive_vector_names(geometry_source, "V13")
+    assert set(_V13_KNOWN_COMMENT_WORDING_GAPS) <= derived_v13_raw, (
+        "the known V13 clip-wording gap mapping is stale: "
+        "tests/test_geometry.py no longer says what it used to")
+    expected_v13 = frozenset(
+        _V13_KNOWN_COMMENT_WORDING_GAPS.get(name, name) for name in derived_v13_raw)
+    assert len(expected_v13) == 12, "unexpected V13 vector count derived from tests/test_geometry.py"
+
+    expected_v14 = _derive_vector_names(solver_source, "V14")
+    assert len(expected_v14) == 2, "unexpected V14 vector count derived from tests/test_solver.py"
+
     expected_by_prefix = {
         "V11": expected_v11,
-        "V13": EXPECTED_V13_NAMES,
-        "V14": EXPECTED_V14_NAMES,
+        "V13": expected_v13,
+        "V14": expected_v14,
     }
     for prefix, expected in expected_by_prefix.items():
         reported = {name for name in reported_status if name.startswith(prefix + " ")}
@@ -334,6 +392,27 @@ def test_check_fails_cleanly_on_an_unparseable_summary(build_single_file):
         args=[], returncode=1, stdout="not a selftest report at all\n", stderr="")
     with patch.object(build_single_file, "_run_selftest", return_value=fake_garbage):
         assert build_single_file.check(None) != 0   # must not raise TypeError
+
+
+def test_check_rejects_a_summary_that_does_not_match_the_vector_count(build_single_file):
+    """Regression for a second real bug found in coordinator review: a
+    selftest report can exit 0 and claim "N/N checks passed" while its
+    actually-printed vector lines don't add up to that - e.g. exactly one
+    printed ``[PASS]`` vector followed by "118/118 checks passed". Every
+    earlier check (exit code 0, a parseable summary, passed == total, no
+    FAIL vector) is individually satisfied by this output, and both sides
+    say the identical inconsistent thing, so this is a distinct case from
+    the both-sides-fail-identically regression above. check() must still
+    reject it: the parsed vector count must equal the summary's total, and
+    the parsed PASS count must equal the summary's reported passed count."""
+    fake_inconsistent = subprocess.CompletedProcess(
+        args=[], returncode=0,
+        stdout=("  [PASS] V1 something                                       "
+                "got            1  want            1\n\n118/118 checks passed\n"),
+        stderr="",
+    )
+    with patch.object(build_single_file, "_run_selftest", return_value=fake_inconsistent):
+        assert build_single_file.check(None) != 0
 
 
 def test_check_fails_when_only_one_side_actually_passes(build_single_file):

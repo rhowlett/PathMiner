@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# v0.2
+# v0.3
 """tools/build_single_file.py — generate the single-file PathMiner distribution.
 
 Session 08 (BASE-004: "preserve a generated single-file distribution. Add
@@ -161,11 +161,18 @@ def _validate_own_selftest(label: str, result: "subprocess.CompletedProcess",
 
     "The generated file passes the same aggregate self-test as the package"
     (BASE-004) requires each side to actually pass on its own — exit 0, a
-    parseable "N/N checks passed" summary, at least one vector, and every
-    vector PASS — before the two sides are even compared against each other.
-    Without this, two runs that fail *identically* (e.g. both "0/1 checks
-    passed", exit 1) would otherwise agree with each other and be reported
-    as a false PASS."""
+    parseable "N/N checks passed" summary, at least one vector, every vector
+    PASS, *and the parsed vector lines and the printed summary must agree
+    with each other* — before the two sides are even compared against each
+    other. Without the first four checks, two runs that fail *identically*
+    (e.g. both "0/1 checks passed", exit 1) would otherwise agree with each
+    other and be reported as a false PASS. Without the last one (added after
+    coordinator review found it missing), a run that exits 0 and prints a
+    summary claiming every check passed, but whose printed vector lines don't
+    actually add up to that summary (e.g. one printed `[PASS]` line followed
+    by "118/118 checks passed" — truncated, corrupted, or fabricated output),
+    would be accepted as a genuine pass merely because both sides happen to
+    say the same internally-inconsistent thing."""
     problems = []
     if result.returncode != 0:
         problems.append(f"{label}'s own --selftest did not pass (exit code {result.returncode})")
@@ -181,6 +188,15 @@ def _validate_own_selftest(label: str, result: "subprocess.CompletedProcess",
         failed = [n for n, s in vectors if s != "PASS"]
         problems.append(f"{label}'s --selftest reported {len(failed)} FAIL vector(s), "
                          f"e.g. {failed[:5]!r}")
+    if summary is not None and vectors:
+        passed, total = summary
+        if len(vectors) != total:
+            problems.append(f"{label}'s --selftest printed {len(vectors)} vector line(s) "
+                             f"but its own summary claims a total of {total}")
+        actual_passed = sum(1 for _name, status in vectors if status == "PASS")
+        if actual_passed != passed:
+            problems.append(f"{label}'s --selftest printed {actual_passed} PASS vector "
+                             f"line(s) but its own summary claims {passed} passed")
     return problems
 
 
