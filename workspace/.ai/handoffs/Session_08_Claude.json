@@ -1,0 +1,164 @@
+{
+  "session": 8,
+  "ai": "Claude",
+  "model": "Sonnet 5",
+  "speed": "not-applicable",
+  "effort": "high",
+  "status": "READY_FOR_REVIEW",
+  "base_commit": "90482b5ebc197a192e7140e16e832d2f4cd2e8e3",
+  "final_commit": "f0e0af3523c087b091411a4f35e2630a5561694b",
+  "branch": "ai/session-08-claude-compatibility-integration",
+  "patch_checksum": null,
+  "punch_items": [
+    {
+      "id": "ARCH-006",
+      "role": "closure owner",
+      "status": "closed",
+      "evidence": "Done-when: 'Consolidate solvers behind one dispatcher... with identical results and metadata... backend agreement is asserted on the same networks.' tools/pcb_trace_resistance.py's _solve_dense, solve_cg, _solve_scipy, HAVE_SCIPY, DENSE_NODE_LIMIT, calibrate_solver, estimate_seconds are now literally pathminer.core.solver's objects (is-identity asserted in tests/test_compatibility.py::test_facade_solver_primitives_are_the_pathminer_core_objects). network_resistance (the one dispatcher every call site in this file already used) now builds an edge list and delegates the solve to pathminer.core.solver.two_terminal_resistance, forcing the same dense/sparse crossover it always used (test_network_resistance_routes_through_two_terminal_resistance, which spies on the call). Backend agreement through this route demonstrated on the same network both ways (test_network_resistance_dense_and_sparse_backends_agree, V11 unbalanced-bridge vector forced through dense and sparse via dense_limit=1). Full V-vector set re-verified end to end: --selftest 118/118 headless and 284/284 on the real IP5385 board, both matching the frozen golden fixtures exactly. Unaffected by either coordinator-review repair round."
+    },
+    {
+      "id": "ARCH-010",
+      "role": "closure owner",
+      "status": "implemented",
+      "evidence": "Done-when: 'module tests and the aggregate --selftest report the same acceptance-vector identities.' STATUS CORRECTED from 'closed' to 'implemented' by coordinator review (documentation-only follow-up; no code, test, or numerical result changed). The identity mechanism is implemented and verified, but WHOLE-ITEM CLOSURE REMAINS OPEN because the comparison covers only part of the aggregate's acceptance-vector set. VERIFIED COVERAGE: tests/test_compatibility.py::test_aggregate_selftest_reports_the_module_split_vector_identities compares V11, V13 and V14 as an exact identity match genuinely derived from the module tests' own source - V11 imported directly from tests/test_solver.py's V11_CASES; V13/V14 parsed from tests/test_geometry.py / tests/test_solver.py's real source via ast at test time (_derive_vector_names), so a rename/removal in either module file is caught by construction. Measured against the headless aggregate run (python3 tools/pcb_trace_resistance.py --selftest, 118 named checks): V11 contributes 7 names, V13 12, V14 2 - 21 of 118. OUTSIDE THE COMPARISON: the electrical acceptance vectors V1-V8 plus the eight 'v0.2 regression' checks (67 of the 118), whose IDs tests/test_resistance.py does retain but which no aggregate-vs-module identity assertion covers; and V9, V12, V21, V23 (30 of the 118), whose IDs no module test file retains at all. V20 remains excluded for the previously documented reason (its backend-agreement block is gated on a '/SDA' net no fixture in this repository supplies; pre-existing, recorded in tests/baseline/README.md - see known_issues). The narrow V13 clip-length comment-wording gap in tests/test_geometry.py is unchanged and still disclosed. FOLLOW-UP (coordinator-assigned, not claimed by this session): extend aggregate-vs-module identity coverage to the remaining vector families - beginning with tests/test_resistance.py's V1-V8 and 'v0.2 regression' vectors, then the families no module test file currently identifies - as the condition for closing ARCH-010 as a whole item."
+    },
+    {
+      "id": "BASE-004",
+      "role": "closure owner",
+      "status": "closed",
+      "evidence": "Done-when: 'Add tools/build_single_file.py after the package split. Done when: the generated file passes the same aggregate self-test as the package.' tools/build_single_file.py added: generate_source() locates the facade's pathminer.core bootstrap by sentinel comments and replaces it with pathminer/core/geometry.py and pathminer/core/solver.py inlined into throwaway module objects, so the generated file has no import-time dependency on pathminer at all (test_generated_single_file_has_no_pathminer_package_dependency; also manually verified by running the generated file from /tmp with a minimal env). --check regenerates the file and diffs its --selftest vector-by-vector against the split facade's: 118/118 both headless; 284/284 both with --board against the real IP5385 board. Coordinator review found and this session fixed check() TWICE: round 1, a false PASS when both sides' --selftest failed identically (e.g. both '0/1 checks passed', exit 1) because check() only compared the two runs against each other and never confirmed either had actually passed; round 2, a false PASS on internally inconsistent output - exit 0 and a summary claiming a full pass (e.g. '118/118 checks passed') while the actually-printed vector lines don't add up to that (e.g. one printed [PASS] line) - because round 1 never cross-checked parsed vector/PASS counts against the summary. check() now requires, per side, independently: exit 0, a parseable summary, passed==total, no FAIL vector, parsed vector count == summary total, and parsed PASS count == summary passed. Four regression tests across both rounds pin these (three from round 1, one new in round 2). This evidence entry reflects the twice-corrected, no-longer-falsifiable check()."
+    }
+  ],
+  "files": {
+    "added": [
+      "tools/build_single_file.py",
+      "tests/test_compatibility.py"
+    ],
+    "modified": [
+      "tools/pcb_trace_resistance.py",
+      "pathminer/__init__.py",
+      "pathminer/core/__init__.py",
+      "documents/change_log.md"
+    ],
+    "removed": []
+  },
+  "apis_changed": [
+    "None added, removed, or resignatured. tools/pcb_trace_resistance.py's public-facing names (network_resistance, solve_cg, _solve_scipy, _solve_dense, calibrate_solver, estimate_seconds, DENSE_NODE_LIMIT, HAVE_SCIPY, and the geometry helpers _pt_in_poly/_seg_poly_crossings/_dist_to_poly/_principal_axis/cluster_vias/via_array_summary/clip_track_to_pour/_arc_length_mm) keep their exact v0.13 names and call signatures; only their implementation is now the shared pathminer.core object instead of a duplicate.",
+    "tools/build_single_file.py is a new script (generate_source, write_file, check, main), additive only; check()'s internal validation logic was corrected across two repair rounds but its CLI surface (--out, --check, --board) is unchanged throughout."
+  ],
+  "schemas_changed": [],
+  "compatibility_consequences": [
+    "solve_cg/_solve_scipy (via pathminer.core.solver) now validate inputs consistently and raise a named ValueError on a disconnected/invalid network instead of v0.13's inconsistent per-backend behavior (silently wrong CG answer, bare 'singular network matrix'/KeyError from the dense path, or a proper raise from _solve_scipy alone). This is the same, already-reviewed Session 04 change (documents/adr/ADR-010.md), now reached by this file's own call sites. No valid, connected network - including every acceptance vector and the real IP5385 board - computes a different answer; verified by the unchanged full regression run before this session's edits, after the initial implementation, and again after each repair round."
+  ],
+  "tests": [
+    {
+      "command": "python3 -m pytest -q (pre-change baseline)",
+      "exit_code": 0,
+      "result": "458 passed",
+      "runtime_seconds": 2.8
+    },
+    {
+      "command": "python3 -m pytest -q (post-implementation, pre-repair)",
+      "exit_code": 0,
+      "result": "467 passed (458 baseline + 9 new); superseded below",
+      "runtime_seconds": 3.4
+    },
+    {
+      "command": "python3 -m pytest -q (post-repair round 1)",
+      "exit_code": 0,
+      "result": "470 passed (458 baseline + 12); superseded below",
+      "runtime_seconds": 4.2
+    },
+    {
+      "command": "python3 -m pytest -q (post-repair round 2, current)",
+      "exit_code": 0,
+      "result": "471 passed (458 baseline + 13 in tests/test_compatibility.py)",
+      "runtime_seconds": 4.4
+    },
+    {
+      "command": "python3 tools/pcb_trace_resistance.py --selftest",
+      "exit_code": 0,
+      "result": "118/118 checks passed",
+      "runtime_seconds": 0.2
+    },
+    {
+      "command": "QT_QPA_PLATFORM=offscreen python3 tools/pcb_trace_resistance.py --selftest ai_reference/kicad_project_example/Ref_PowerBank_injoinic_IP5385_v0.8.kicad_pcb",
+      "exit_code": 0,
+      "result": "284/284 checks passed",
+      "runtime_seconds": 28.0
+    },
+    {
+      "command": "QT_QPA_PLATFORM=offscreen python3 tests/baseline/regression_compare.py all",
+      "exit_code": 0,
+      "result": "All three canonical suites PASS: 118 headless + 284 real-board selftest vectors match golden fixtures exactly; 1 net / 11 pairs IP5385 batch report matches within the existing 1e-6 tolerance. Re-run before every edit and after every implementation/repair step; identical result every time.",
+      "runtime_seconds": 38.0
+    },
+    {
+      "command": "python3 tools/build_single_file.py --check (post-repair round 2)",
+      "exit_code": 0,
+      "result": "PASS: generated single file agrees with the split package: 118 vectors, 118/118 passed on both, using the twice-corrected check() logic",
+      "runtime_seconds": 0.5
+    },
+    {
+      "command": "QT_QPA_PLATFORM=offscreen python3 tools/build_single_file.py --check --board ai_reference/kicad_project_example/Ref_PowerBank_injoinic_IP5385_v0.8.kicad_pcb (post-repair round 2)",
+      "exit_code": 0,
+      "result": "PASS: generated single file agrees with the split package: 284 vectors, 284/284 passed on both",
+      "runtime_seconds": 56.0
+    },
+    {
+      "command": "python3 -m pytest -q tests/test_compatibility.py",
+      "exit_code": 0,
+      "result": "13 passed (9 original + 3 round-1 + 1 round-2 regression tests for the check() fixes)",
+      "runtime_seconds": 0.35
+    },
+    {
+      "command": "Manual repro, round 1: patch.object(build_single_file, '_run_selftest', return_value=<fake CompletedProcess: returncode=1, stdout='...0/1 checks passed'>), then check(None)",
+      "exit_code": null,
+      "result": "Before the round-1 fix: returned 0 and printed PASS (bug reproduced exactly as reported). After: returns 1 with a FAIL diagnostic. Permanently pinned by test_check_does_not_pass_when_both_sides_fail_identically.",
+      "runtime_seconds": null
+    },
+    {
+      "command": "Manual repro, round 2: both subprocesses exit 0, print one [PASS] vector, then '118/118 checks passed'; then check(None)",
+      "exit_code": null,
+      "result": "Before the round-2 fix: returned 0 and printed PASS (second bug, reproduced exactly as specified). After: returns 1 with a FAIL diagnostic naming the vector-count/PASS-count mismatch on both sides. Permanently pinned by test_check_rejects_a_summary_that_does_not_match_the_vector_count.",
+      "runtime_seconds": null
+    }
+  ],
+  "decisions": [
+    "Aliases (name = _pm_solver.name / _pm_geometry.name), not wrappers, wherever the v0.13 signature already matched the pathminer.core one exactly, so is-identity can be asserted directly as proof of one shared dispatcher rather than trusting a numeric coincidence.",
+    "network_resistance keeps its own r<=0 pre-filter and explicit dense/sparse crossover computed from len(adj) vs dense_limit (the same test this function has always used), then delegates only the actual linear solve to pathminer.core.solver.two_terminal_resistance with an explicit backend= override - not left to that function's own 'auto', which counts nodes from the post-filter edge list and could pick a different crossover point on a graph with dropped edges.",
+    "The pathminer.core bootstrap in tools/pcb_trace_resistance.py is delimited by explicit sentinel comments (PATHMINER_CORE_BOOTSTRAP_BEGIN/END), not AST slicing or a fixed line range, so tools/build_single_file.py can find and replace exactly the right block regardless of unrelated edits elsewhere, and fails loudly (RuntimeError) if the sentinels are ever missing or renamed.",
+    "Inlined pathminer.core modules become throwaway types.ModuleType objects bound to the existing _pm_geometry/_pm_solver names (not `from x import *`), so every downstream call site in the facade works unchanged in the generated single file.",
+    "tools/build_single_file.py --check compares parsed [PASS]/[FAIL] <name> identity and totals, not raw got/want text, because a few vectors (V19, V23) legitimately print a fresh tempfile.mkdtemp() path on every run - the same reason tests/baseline/regression_compare.py normalizes those fields before comparing against a frozen golden fixture.",
+    "network_resistance's stricter failure behavior on invalid input (a named ValueError for a disconnected/invalid network, inherited from pathminer.core.solver's already-reviewed _prepare validation) was accepted, not defended against, after the full regression run showed it unchanged before/after and a new failure-path test (test_network_resistance_raises_on_a_disconnected_graph) confirmed the new behavior; no acceptance vector or real-board path exercises the previously inconsistent behavior with a valid answer.",
+    "Materials/units/resistance and KiCad/board/network wiring left untouched (solver/geometry only). This session's original framing - that the punch-list responsibility line ('Contributes to or extends: None') controls or outranks the Objective's broader wording - is RETRACTED as the stated basis, per the coordinator's explicit scope disposition (see below): 'do not claim Contributes: None overrides the session objective.' The technical scope is unchanged; it is now presented as a bounded, coordinator-accepted contribution, with the remaining integration recorded as incomplete work blocking M1 completion rather than a scope boundary this session's own reading settled.",
+    "(Repair, round 1) check()'s own-side validation runs to completion for both sides before failing, rather than stopping at the first problem, so a single --check invocation reports every actual defect with both sides at once. Round 2's new checks run alongside these, not instead of them.",
+    "(Repair, round 1->round 2) ARCH-010's V13/V14 identities moved from a hand-typed parallel list (round 1, which a reviewer correctly found insufficient to demonstrate module-side coverage) to genuine derivation via ast parsing of tests/test_geometry.py/tests/test_solver.py's actual source (round 2, _derive_vector_names) - a rename/removal in either module file is now caught by construction.",
+    "(Repair, round 2) The clip-length wording gap the derivation surfaced is mapped explicitly and narrowly (two exact strings, not fuzzy/substring matching), with the mapping's keys asserted present in the freshly derived set every run, so the mapping cannot silently go stale and cannot hide an unrelated future mismatch.",
+    "Coordinator scope disposition received (not a decision made by this session): 'Solver/geometry integration is accepted as a bounded contribution. Wider electrical-core and KiCad/board/network/builder integration remains incomplete and requires coordinator assignment before M1 completion.' Recorded verbatim in substance in both handoffs and documents/change_log.md; no additional integration was attempted in response to it (doing so unassigned would itself be a scope expansion)."
+  ],
+  "assumptions": [
+    "This session's own base commit is its actual git parent, 90482b5 (the real `git rev-parse HEAD` before any edit, per the prompt's Preconditions) - not 6c5f4f6, the earlier prerequisite-integration commit SESSION_STATUS.csv records, which is 90482b5's parent. Corrected in the first coordinator-review repair and held unchanged through the second, per the coordinator's explicit instruction that the original implementation base must remain the handoff base.",
+    "pathminer.core.solver / pathminer.core.geometry's numerics (Session 04) are the accepted, coordinator-reviewed source of truth to delegate to, including the stricter shared _prepare validation that superseded v0.13's inconsistent per-backend behavior on invalid input (ADR-010)."
+  ],
+  "deviations": [
+    "The session Objective's broader phrase 'Integrate extracted modules into the legacy entry point' was interpreted narrowly in the original implementation to cover only the solver and geometry modules named by ARCH-006/ARCH-010, not materials/units/resistance (PWR-001) or KiCad/board/network wiring. The coordinator has since dispositioned this: solver/geometry integration is accepted as a bounded contribution, and the remainder is incomplete work blocking M1 completion requiring explicit assignment - not a scope boundary this session's own prompt reading settled. This session's earlier self-justifying framing (punch-list line 'outranking' the Objective) is retracted as the stated basis.",
+    "The base-commit field in both handoff files was corrected from 6c5f4f6 to 90482b5 (this session's actual git parent) in the first repair round; no code or history was changed by this correction, only the handoff text. It remains 90482b5 through this second round per explicit resume instructions.",
+    "tests/test_geometry.py's inline comments for two V13 vectors ('clip outside'/'clip inside') omit the word 'length' that the aggregate selftest's stable names carry ('clip outside length'/'clip inside length') - a comment-wording-only gap, not a numerical one, in a file outside this session's owned write scope. Discovered by the round-2 genuine-derivation fix; mapped explicitly in tests/test_compatibility.py; recommended as a small follow-up fix for whoever next has write access to tests/test_geometry.py.",
+    "ARCH-010's punch-item status was corrected from 'closed' to 'implemented' after the coordinator's review of package tip 53f8e30, which found the closure claim broader than the evidence: the identity comparison covers V11/V13/V14 only, leaving tests/test_resistance.py's electrical acceptance vectors and the previously documented V20 exclusion outside it. This correction is documentation-only - no source, test, or numerical behaviour changed, final_commit remains f0e0af3523c087b091411a4f35e2630a5561694b, and the numerical results reported in this handoff remain identified with that tested implementation commit."
+  ],
+  "known_issues": [
+    "V20's solver-backend-agreement check inside tools/pcb_trace_resistance.py's selftest (_v20) is gated on a board with a '/SDA' net matching v0.13's small hand-built reference board; no fixture in this repository (tests/fixtures/kicad/*.kicad_pcb, or the real IP5385 board) defines that net, so this specific check is not exercised by either canonical suite - already documented as 'V20: Skipped (not the reference test board)' in tests/baseline/README.md, predating this session. _solve_scipy/solve_cg are still correctly aliased to pathminer.core.solver (asserted directly in tests/test_compatibility.py), so V20 would pass through the shared dispatcher if a matching board fixture were ever supplied.",
+    "PWR-001 (materials/units/resistance wiring into the legacy facade) remains open - per the coordinator's scope disposition, this is incomplete work blocking M1 completion and requires explicit assignment, not merely 'left open' at this session's discretion.",
+    "BoardNets, build_graph_pour, mesh_pour_edges, Pour, and the GUI classes remain independent of pathminer.kicad/pathminer.models.board/pathminer.core.network/pathminer.analysis.builders - also incomplete work blocking M1 completion per the same disposition, requiring explicit coordinator assignment to a session.",
+    "A two-vector comment-wording gap in tests/test_geometry.py (see deviations) is outside this session's owned write scope to fix directly; flagged for a trivial follow-up whenever that file is next open for editing.",
+    "ARCH-010 is implemented but not closed as a whole item: the aggregate-vs-module acceptance-vector identity comparison in tests/test_compatibility.py covers V11/V13/V14 only (21 of the 118 checks the headless aggregate --selftest reports). tests/test_resistance.py's electrical acceptance vectors V1-V8 and the eight 'v0.2 regression' checks (67 of 118) retain their IDs module-side but are not part of any identity assertion; V9, V12, V21 and V23 (30 of 118) have no module-side ID retention at all; V20 remains excluded for the separately documented fixture reason. Extending that coverage is coordinator-assigned follow-up work, not work this session performed or claims."
+  ],
+  "dependent_session_impact": [
+    "Session 09 (shared domain contracts, ARCH-005) and every later session: pathminer.core.solver/pathminer.core.geometry are now demonstrably the single source of truth for the legacy runtime too, not just the package; a future numerical change to either module now also changes the legacy tool's behavior by construction.",
+    "M1 completion is blocked on two explicitly-flagged, not-yet-assigned pieces of integration per the coordinator's scope disposition: PWR-001 (materials/units/resistance wiring) and a KiCad/board/network/builder integration (deciding whether BoardNets/build_graph_pour/mesh_pour_edges are replaced by pathminer.kicad/pathminer.models.board/pathminer.core.network/pathminer.analysis.builders) - a substantially larger migration than this session's. Whichever session is assigned either can follow this session's pattern (alias, verify via the same regression commands, keep crossover/pre-filter semantics explicit).",
+    "tools/build_single_file.py --check is now available as an independent regression gate (e.g. for a future CI/release or CLI session) alongside tests/baseline/regression_compare.py, hardened against two distinct false-PASS paths across two repair rounds.",
+    "No existing API, schema, default, unit, or tolerance changed; no dependent session's contract is affected beyond the above."
+  ],
+  "recommended_next_action": "Coordinator: review this diff and handoff against the corrected base commit 90482b5 (not 6c5f4f6, which the first version of this handoff incorrectly named) and the two repair commits (115088c, then f0e0af3) that follow the original implementation fb71f81 on this branch. BASE-004 and ARCH-006 are presented as closed with direct evidence for their exact Done-when clauses, strengthened across two coordinator-review repair rounds (build_single_file.py --check is hardened against two distinct false-PASS paths). ARCH-010 is presented as IMPLEMENTED, not closed: its identity evidence is genuinely derived from the module test files' own source, but covers V11/V13/V14 only (21 of 118 headless checks), so whole-item closure remains open - tests/test_resistance.py's V1-V8 and 'v0.2 regression' vectors, the families with no module-side IDs, and the documented V20 exclusion are outside the comparison. Broadening that coverage is recorded as coordinator-assigned follow-up. The scope question this handoff previously raised has been dispositioned by the coordinator: solver/geometry integration is accepted as a bounded contribution; PWR-001 and a KiCad/board/network/builder integration remain incomplete work blocking M1 completion and require explicit coordinator assignment - this handoff no longer asks for scope confirmation, only that the remaining work be tracked and assigned. One small, low-risk item is also flagged: a two-vector comment-wording gap in tests/test_geometry.py (outside this session's owned write scope) as a candidate trivial follow-up. Only the coordinator marks the session INTEGRATED."
+}

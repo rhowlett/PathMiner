@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# v0.13
+# v0.14
 """
 PCB Trace / Via Resistance Calculator - single-file PySide6 application.
 
@@ -282,7 +282,54 @@ v0.13 2026-08-24  Consolidation. The Stackup tab is now Setup and owns
                   from system.open_projects in kicad.json, found at the right
                   place for macOS, Windows and Linux and tolerant of a missing
                   or malformed file. Selftest gains V23.
+v0.14 2026-09-11  Session 08 (compatibility integration and single-file
+                  build). This file is now the legacy compatibility facade
+                  over the extracted ``pathminer`` package (ARCH-006,
+                  ARCH-010, BASE-004): the numerical solver dispatcher
+                  (``_solve_dense``, ``solve_cg``, ``_solve_scipy``,
+                  ``DENSE_NODE_LIMIT``, ``HAVE_SCIPY``, ``calibrate_solver``,
+                  ``estimate_seconds``, ``network_resistance``) and the pure
+                  planar-geometry helpers (``_pt_in_poly``,
+                  ``_seg_poly_crossings``, ``_dist_to_poly``,
+                  ``_principal_axis``, ``cluster_vias``, ``via_array_summary``,
+                  ``clip_track_to_pour``, ``_arc_length_mm``) are now thin
+                  aliases onto ``pathminer.core.solver`` /
+                  ``pathminer.core.geometry`` (Sessions 03/04/07) rather than
+                  duplicated copies, so there is one source of truth for both
+                  the split package and this script. No formula, tolerance,
+                  or default changed; every acceptance vector reproduces the
+                  same numbers (see ``tests/test_compatibility.py`` and
+                  ``tests/baseline/regression_compare.py``).
+                  ``tools/build_single_file.py`` generates a self-contained
+                  single-file distribution that inlines
+                  ``pathminer.core.geometry``/``pathminer.core.solver`` and
+                  needs no ``pathminer`` import at all, preserving v0.13's
+                  single-file distribution model (BASE-004); ``--check``
+                  verifies its ``--selftest`` agrees with this facade's.
 """
+# ---------------------------------------------------------------------------
+# pathminer.core bootstrap (Session 08 compatibility facade; ARCH-006/ARCH-010)
+# ---------------------------------------------------------------------------
+# This legacy entry point delegates its numerical solver dispatcher and pure
+# planar-geometry primitives to the extracted ``pathminer.core`` package
+# (Sessions 03/04/07) instead of keeping duplicate copies, so there is one
+# source of truth for the physics shared by the split package and this
+# script (BASE-004's "compatibility facade"). ``tools/build_single_file.py``
+# locates this block by its sentinel comments and replaces it with the
+# inlined module source for the generated single-file distribution, which
+# therefore has no import-time dependency on ``pathminer`` at all.
+# === PATHMINER_CORE_BOOTSTRAP_BEGIN ===
+import os as _os
+import sys as _sys
+
+_PATHMINER_ROOT = _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))
+if _PATHMINER_ROOT not in _sys.path:
+    _sys.path.insert(0, _PATHMINER_ROOT)
+
+from pathminer.core import geometry as _pm_geometry      # noqa: E402
+from pathminer.core import solver as _pm_solver           # noqa: E402
+# === PATHMINER_CORE_BOOTSTRAP_END ===
+
 import math, re
 
 RHO_CU_20C = 1.724e-8
@@ -1377,82 +1424,17 @@ def selftest(verbose=True, board_path=None):
 #  Zone-aware modelling: track splitting, pours, via arrays, ladders
 # =====================================================================
 
-def _pt_in_poly(pt, poly):
-    """Ray casting. Points exactly on an edge count as inside."""
-    x, y = pt
-    inside = False
-    n = len(poly)
-    for i in range(n):
-        x1, y1 = poly[i]
-        x2, y2 = poly[(i + 1) % n]
-        if abs((x2 - x1) * (y - y1) - (y2 - y1) * (x - x1)) < 1e-9 \
-                and min(x1, x2) - 1e-9 <= x <= max(x1, x2) + 1e-9 \
-                and min(y1, y2) - 1e-9 <= y <= max(y1, y2) + 1e-9:
-            return True
-        if (y1 > y) != (y2 > y):
-            xi = x1 + (y - y1) * (x2 - x1) / (y2 - y1)
-            if x < xi:
-                inside = not inside
-    return inside
-
-
-def _seg_poly_crossings(p1, p2, poly):
-    """Parameters t in (0,1) where segment p1->p2 crosses the polygon boundary."""
-    (ax, ay), (bx, by) = p1, p2
-    dx, dy = bx - ax, by - ay
-    ts = []
-    n = len(poly)
-    for i in range(n):
-        x1, y1 = poly[i]
-        x2, y2 = poly[(i + 1) % n]
-        ex, ey = x2 - x1, y2 - y1
-        den = dx * ey - dy * ex
-        if abs(den) < 1e-15:
-            continue
-        t = ((x1 - ax) * ey - (y1 - ay) * ex) / den
-        u = ((x1 - ax) * dy - (y1 - ay) * dx) / den
-        if 1e-9 < t < 1 - 1e-9 and -1e-9 <= u <= 1 + 1e-9:
-            ts.append(t)
-    return sorted(set(round(t, 9) for t in ts))
-
-
-def _dist_to_poly(pt, poly):
-    """Distance from a point to a polygon boundary (edges, not just vertices)."""
-    x, y = pt
-    best = float("inf")
-    n = len(poly)
-    for i in range(n):
-        x1, y1 = poly[i]
-        x2, y2 = poly[(i + 1) % n]
-        dx, dy = x2 - x1, y2 - y1
-        d2 = dx * dx + dy * dy
-        t = 0.0 if d2 == 0 else max(0.0, min(1.0, ((x - x1) * dx + (y - y1) * dy) / d2))
-        best = min(best, math.hypot(x - (x1 + t * dx), y - (y1 + t * dy)))
-    return best
-
-
-def _principal_axis(pts):
-    """Oriented bounding box of a point cloud: (origin, unit axis, length, width)."""
-    n = len(pts)
-    cx = sum(p[0] for p in pts) / n
-    cy = sum(p[1] for p in pts) / n
-    sxx = sum((p[0] - cx) ** 2 for p in pts) / n
-    syy = sum((p[1] - cy) ** 2 for p in pts) / n
-    sxy = sum((p[0] - cx) * (p[1] - cy) for p in pts) / n
-    tr, det = sxx + syy, sxx * syy - sxy * sxy
-    disc = max(tr * tr / 4.0 - det, 0.0)
-    lam = tr / 2.0 + math.sqrt(disc)
-    if abs(sxy) > 1e-15:
-        vx, vy = lam - syy, sxy
-    else:
-        vx, vy = (1.0, 0.0) if sxx >= syy else (0.0, 1.0)
-    nrm = math.hypot(vx, vy) or 1.0
-    ux, uy = vx / nrm, vy / nrm
-    us = [(p[0] - cx) * ux + (p[1] - cy) * uy for p in pts]
-    vs = [-(p[0] - cx) * uy + (p[1] - cy) * ux for p in pts]
-    length = max(us) - min(us)
-    width = max(vs) - min(vs)
-    return (cx, cy), (ux, uy), length, width, min(us)
+# Pure planar-geometry primitives (Session 04 extraction; Session 08 wiring).
+# These are aliases onto ``pathminer.core.geometry``, not copies: numerics are
+# ported verbatim there (see that module's docstring), so aliasing removes the
+# duplicate source without changing a single expression, epsilon, or
+# tie-break. Kept under their original v0.13 names because this file's own
+# code (``Pour``, ``build_pour_ladder``, ``build_graph_pour``, ``selftest``)
+# still calls them by those names.
+_pt_in_poly = _pm_geometry.point_in_polygon
+_seg_poly_crossings = _pm_geometry.segment_polygon_crossings
+_dist_to_poly = _pm_geometry.distance_to_polygon
+_principal_axis = _pm_geometry.principal_axis
 
 
 class Pour:
@@ -1502,52 +1484,11 @@ def parse_pours(root):
     return {n: Pour(n, f) for n, f in by_net.items()}
 
 
-def cluster_vias(points, max_gap=2.0):
-    """Group vias into arrays by proximity (single-link). Returns list of lists."""
-    remaining = list(points)
-    out = []
-    while remaining:
-        seed = remaining.pop()
-        group = [seed]
-        changed = True
-        while changed:
-            changed = False
-            for p in list(remaining):
-                if any(math.hypot(p[0] - g[0], p[1] - g[1]) <= max_gap for g in group):
-                    group.append(p); remaining.remove(p); changed = True
-        out.append(sorted(group))
-    return sorted(out, key=lambda g: (-len(g), g[0]))
-
-
-def via_array_summary(groups):
-    """Centroid and extent per cluster - the statics view of each array."""
-    out = []
-    for g in groups:
-        n = len(g)
-        cx = sum(p[0] for p in g) / n
-        cy = sum(p[1] for p in g) / n
-        span = max(math.hypot(a[0] - b[0], a[1] - b[1]) for a in g for b in g) if n > 1 else 0.0
-        out.append({"count": n, "centroid": (round(cx, 4), round(cy, 4)),
-                    "extent_mm": round(span, 4), "points": g})
-    return out
-
-
-def clip_track_to_pour(p1, p2, poly):
-    """Split a track by a pour outline.
-
-    Returns (outside, inside) as lists of (pa, pb, frac) sub-runs. Copper inside
-    the pour is modelled by the pour strip, so those runs must not also be added
-    as 1-D track edges or they would be double counted in parallel."""
-    ts = [0.0] + _seg_poly_crossings(p1, p2, poly) + [1.0]
-    (ax, ay), (bx, by) = p1, p2
-    at = lambda t: (round(ax + t * (bx - ax), 6), round(ay + t * (by - ay), 6))  # noqa: E731
-    outside, inside = [], []
-    for t0, t1 in zip(ts, ts[1:]):
-        if t1 - t0 < 1e-9:
-            continue
-        mid = at((t0 + t1) / 2.0)
-        (inside if _pt_in_poly(mid, poly) else outside).append((at(t0), at(t1), t1 - t0))
-    return outside, inside
+# Clustering and track/pour clipping (Session 04 extraction; Session 08
+# wiring) - see the note above ``_pt_in_poly``.
+cluster_vias = _pm_geometry.cluster_points
+via_array_summary = _pm_geometry.cluster_summary
+clip_track_to_pour = _pm_geometry.clip_segment_to_polygon
 
 
 def build_pour_ladder(pour, order, stations_extra, via_layers, strip_r, rung_r):
@@ -1774,120 +1715,19 @@ class _Union:
         if ra != rb: self.p[ra] = rb
 
 
-try:                                            # optional, never required
-    import numpy as _np
-    import scipy.sparse as _sp
-    import scipy.sparse.linalg as _spl
-    HAVE_SCIPY = True
-except ImportError:                             # pure-Python fallback below
-    HAVE_SCIPY = False
-
-
-def _solve_scipy(edges, src, dst):
-    """Same nodal problem through compiled sparse code when scipy is installed.
-
-    Two to three orders of magnitude faster than the Python CG on meshed pours;
-    the result must agree with it, which V20 checks."""
-    nodes = sorted({u for u, _v, _r in edges} | {v for _u, v, _r in edges}, key=str)
-    idx = {n: i for i, n in enumerate(nodes)}
-    n = len(nodes)
-    rows, cols, vals = [], [], []
-    for u, v, r in edges:
-        if r <= 0 or u == v:
-            continue
-        g = 1.0 / r
-        iu, iv = idx[u], idx[v]
-        rows += [iu, iv, iu, iv]
-        cols += [iu, iv, iv, iu]
-        vals += [g, g, -g, -g]
-    # A disconnected graph makes the grounded Laplacian singular. scipy returns
-    # NaNs with only a warning on stderr, so check reachability first and fail
-    # loudly instead of reporting a nonsense resistance.
-    nbr = {}
-    for u, v, r in edges:
-        if r > 0 and u != v:
-            nbr.setdefault(u, []).append(v)
-            nbr.setdefault(v, []).append(u)
-    seen_n, stack = {src}, [src]
-    while stack:                                     # full component, not early exit
-        cur = stack.pop()
-        for nx in nbr.get(cur, ()):
-            if nx not in seen_n:
-                seen_n.add(nx); stack.append(nx)
-    if dst not in seen_n:
-        raise ValueError("endpoints are not connected")
-    # Other components are still singular even when src and dst are connected,
-    # so solve over the source's component alone.
-    L = _sp.coo_matrix((vals, (rows, cols)), shape=(n, n)).tocsr()
-    gnd = idx[src]
-    comp = {idx[u] for u in seen_n}
-    keep = [i for i in sorted(comp) if i != gnd]
-    Lr = L[keep, :][:, keep].tocsc()
-    b = _np.zeros(len(keep))
-    pos = keep.index(idx[dst])
-    b[pos] = 1.0
-    x = _spl.spsolve(Lr, b)
-    val = float(x[pos])
-    if not math.isfinite(val):
-        raise ValueError("nodal solve did not produce a finite resistance")
-    return val, n, 1
-
-
-def solve_cg(edges, src, dst, tol=1e-13, maxit=50000):
-    """Two-terminal resistance by Jacobi-preconditioned CG on the grounded Laplacian.
-
-    Equipotential groups must already be merged by the caller - tiny tie
-    resistors destroy the conditioning."""
-    nodes = sorted({u for u, _v, _r in edges} | {v for _u, v, _r in edges}, key=str)
-    idx = {n: i for i, n in enumerate(nodes)}
-    n = len(nodes)
-    nbr = [[] for _ in range(n)]
-    diag = [0.0] * n
-    for u, v, r in edges:
-        if r <= 0 or u == v:
-            continue
-        g = 1.0 / r
-        iu, iv = idx[u], idx[v]
-        nbr[iu].append((iv, g)); nbr[iv].append((iu, g))
-        diag[iu] += g; diag[iv] += g
-    gnd = idx[src]
-
-    def mv(x):
-        y = [0.0] * n
-        for i in range(n):
-            if i == gnd:
-                continue
-            s = diag[i] * x[i]
-            for j, g in nbr[i]:
-                if j != gnd:
-                    s -= g * x[j]
-            y[i] = s
-        return y
-
-    b = [0.0] * n; b[idx[dst]] = 1.0; b[gnd] = 0.0
-    x = [0.0] * n
-    r = b[:]
-    M = [1.0 / diag[i] if diag[i] > 0 else 1.0 for i in range(n)]
-    z = [M[i] * r[i] for i in range(n)]; z[gnd] = 0.0
-    p = z[:]; rz = sum(r[i] * z[i] for i in range(n))
-    its = 0
-    for its in range(1, maxit + 1):
-        Ap = mv(p)
-        pAp = sum(p[i] * Ap[i] for i in range(n))
-        if abs(pAp) < 1e-300:
-            break
-        a = rz / pAp
-        for i in range(n):
-            x[i] += a * p[i]; r[i] -= a * Ap[i]
-        r[gnd] = 0.0
-        if max(abs(v) for v in r) < tol:
-            break
-        z = [M[i] * r[i] for i in range(n)]; z[gnd] = 0.0
-        rz2 = sum(r[i] * z[i] for i in range(n))
-        beta = rz2 / rz; rz = rz2
-        for i in range(n):
-            p[i] = z[i] + beta * p[i]
-    return x[idx[dst]], len(nodes), its
+# Numerical solver backends (Session 04 extraction; Session 08 wiring -
+# ARCH-006 "consolidate solvers behind one dispatcher"). Aliased onto
+# ``pathminer.core.solver`` rather than duplicated: same edge-list signature
+# ``(edges, src, dst)`` -> ``(resistance_ohm, node_count, iterations)``, same
+# numerics (ported verbatim there). ``solve_cg``/``_solve_scipy`` also gain
+# the shared cross-backend input validation described in that module's
+# docstring (non-finite/non-positive resistance, missing endpoint, src==dst,
+# unreachable endpoints, CG non-convergence all raise a named ``ValueError``
+# on every backend); no valid connected network computes a different answer
+# because of this (see ``tests/test_compatibility.py``).
+HAVE_SCIPY = _pm_solver.HAVE_SCIPY
+_solve_scipy = _pm_solver.solve_scipy
+solve_cg = _pm_solver.solve_cg
 
 
 def mesh_pour_edges(pour, order, geo, via_info, ties, pitch, plating_m, convention, mode):
@@ -3746,31 +3586,9 @@ def _q(v):
     return round(float(v), Q)
 
 
-def _arc_length_mm(sx, sy, mx, my, ex, ey):
-    """Arc length through three points; falls back to the chord if degenerate."""
-    d = 2.0 * (sx * (my - ey) + mx * (ey - sy) + ex * (sy - my))
-    if abs(d) < 1e-12:
-        return math.hypot(ex - sx, ey - sy)
-    ux = ((sx * sx + sy * sy) * (my - ey) + (mx * mx + my * my) * (ey - sy)
-          + (ex * ex + ey * ey) * (sy - my)) / d
-    uy = ((sx * sx + sy * sy) * (ex - mx) + (mx * mx + my * my) * (sx - ex)
-          + (ex * ex + ey * ey) * (mx - sx)) / d
-    r = math.hypot(sx - ux, sy - uy)
-    if r < 1e-12:
-        return math.hypot(ex - sx, ey - sy)
-    a0 = math.atan2(sy - uy, sx - ux)
-    a1 = math.atan2(my - uy, mx - ux)
-    a2 = math.atan2(ey - uy, ex - ux)
-
-    def norm(a):
-        while a < 0: a += 2 * math.pi
-        while a >= 2 * math.pi: a -= 2 * math.pi
-        return a
-    sweep_mid = norm(a1 - a0)
-    sweep_end = norm(a2 - a0)
-    if sweep_mid > sweep_end:                     # arc runs the other way
-        sweep_end = 2 * math.pi - sweep_end
-    return r * sweep_end
+# Arc length through three points (Session 04 extraction; Session 08 wiring)
+# - see the note above ``_pt_in_poly``.
+_arc_length_mm = _pm_geometry.arc_length
 
 
 class BoardNets:
@@ -4151,66 +3969,21 @@ def edge_resistance(data, geo, plating_m, convention, mode):
     return r
 
 
-def _solve_dense(A, b):
-    """Gauss-Jordan with partial pivoting. Networks here are tens of nodes."""
-    n = len(b)
-    M = [list(row) + [b[i]] for i, row in enumerate(A)]
-    for c in range(n):
-        p = max(range(c, n), key=lambda r: abs(M[r][c]))
-        if abs(M[p][c]) < 1e-18:
-            raise ValueError("singular network matrix")
-        M[c], M[p] = M[p], M[c]
-        pv = M[c][c]
-        for r in range(n):
-            if r == c:
-                continue
-            f = M[r][c] / pv
-            if f:
-                for k in range(c, n + 1):
-                    M[r][k] -= f * M[c][k]
-    return [M[i][n] / M[i][i] for i in range(n)]
-
-
-DENSE_NODE_LIMIT = 400
+# Dense backend and dispatcher constant (Session 04 extraction; Session 08
+# wiring) - see the note above ``HAVE_SCIPY``.
+_solve_dense = _pm_solver.solve_dense
+DENSE_NODE_LIMIT = _pm_solver.DENSE_NODE_LIMIT
 
 # How far outside filled copper a pad may sit and still count as zone-connected.
 # Zone clearance plus half a pad; generous enough for thermal reliefs, tight
 # enough not to bridge a genuinely unconnected pad.
 ZONE_PAD_REACH_MM = 1.0
 
-_CALIB = {}
-
-
-def calibrate_solver():
-    """Time two synthetic grids to learn this machine's t = a * nodes^b.
-
-    Cached; costs a fraction of a second the first time it is asked."""
-    if _CALIB:
-        return _CALIB
-    import time as _time
-    pts = []
-    for side in (12, 22):
-        edges = []
-        for r in range(side):
-            for c in range(side):
-                if c + 1 < side:
-                    edges.append(((r, c), (r, c + 1), 1.0))
-                if r + 1 < side:
-                    edges.append(((r, c), (r + 1, c), 1.0))
-        n = side * side
-        t0 = _time.perf_counter()
-        if HAVE_SCIPY:
-            _solve_scipy(edges, (0, 0), (side - 1, side - 1))
-        else:
-            solve_cg(edges, (0, 0), (side - 1, side - 1))
-        pts.append((n, max(_time.perf_counter() - t0, 1e-6)))
-    (n1, t1), (n2, t2) = pts
-    b = math.log(t2 / t1) / math.log(n2 / n1) if n2 != n1 and t1 > 0 else 1.5
-    b = min(max(b, 0.8), 3.0)
-    a = t1 / (n1 ** b)
-    _CALIB.update({"a": a, "b": b, "backend": "scipy" if HAVE_SCIPY else "python",
-                   "samples": pts})
-    return _CALIB
+# Solver calibration / time forecast (Session 04 extraction; Session 08
+# wiring) - ``pathminer.core.solver`` keeps its own cache, shared by every
+# caller (this file and the package alike) rather than a second copy here.
+calibrate_solver = _pm_solver.calibrate_solver
+estimate_seconds = _pm_solver.estimate_seconds
 
 
 def estimate_nodes(board, net, order, zone_model, mesh_pitch):
@@ -4231,60 +4004,32 @@ def estimate_nodes(board, net, order, zone_model, mesh_pitch):
     return base + (vias + 2) * layers
 
 
-def estimate_seconds(nodes):
-    c = calibrate_solver()
-    return c["a"] * (max(nodes, 2) ** c["b"])
-
-
 def network_resistance(adj, node_a, node_b, rfun, dense_limit=DENSE_NODE_LIMIT):
     """True two-terminal resistance of the whole net, parallel paths included.
 
     Nodal analysis: ground node_a, inject 1 A at node_b, R = V(node_b).
-    Small graphs go through a dense Gauss-Jordan solve; meshed pours are far
-    too big for O(n^3), so they fall through to sparse conjugate gradient."""
-    if len(adj) > dense_limit:
-        seen, edges = set(), []
-        for u, links in adj.items():
-            for v, data in links:
-                if id(data) in seen:
-                    continue
-                seen.add(id(data))
-                r = rfun(data)
-                if r > 0:
-                    edges.append((u, v, r))
-        if HAVE_SCIPY:
-            R, _n, _its = _solve_scipy(edges, node_a, node_b)
-        else:
-            R, _n, _its = solve_cg(edges, node_a, node_b)
-        return R
-    nodes = [n for n in adj if n != node_a]
-    if node_b not in adj or node_a not in adj:
-        raise ValueError("endpoint not in graph")
-    idx = {n: i for i, n in enumerate(nodes)}
-    size = len(nodes)
-    G = [[0.0] * size for _ in range(size)]
-    seen = set()
+
+    This is the single solver dispatcher (ARCH-006): builds a backend-neutral
+    edge list from *adj*/*rfun* - deduplicating the shared ``data`` object an
+    undirected pair stores at both endpoints, and dropping non-positive-
+    resistance edges, exactly as this function always has - then delegates
+    the actual solve to ``pathminer.core.solver.two_terminal_resistance``.
+    The dense/sparse crossover is forced explicitly from *dense_limit* against
+    *adj*'s raw node count (rather than left to that function's own ``"auto"``,
+    which counts post-filter edge endpoints) so the crossover point is
+    unchanged from this function's own long-standing behavior."""
+    seen, edges = set(), []
     for u, links in adj.items():
         for v, data in links:
             if id(data) in seen:
                 continue
             seen.add(id(data))
             r = rfun(data)
-            if r <= 0:
-                continue
-            g = 1.0 / r
-            iu, iv = idx.get(u), idx.get(v)
-            if iu is not None:
-                G[iu][iu] += g
-            if iv is not None:
-                G[iv][iv] += g
-            if iu is not None and iv is not None:
-                G[iu][iv] -= g
-                G[iv][iu] -= g
-    inj = [0.0] * size
-    inj[idx[node_b]] = 1.0
-    V = _solve_dense(G, inj)
-    return V[idx[node_b]]
+            if r > 0:
+                edges.append((u, v, r))
+    backend = "dense" if len(adj) <= dense_limit else ("scipy" if HAVE_SCIPY else "cg")
+    return _pm_solver.two_terminal_resistance(edges, node_a, node_b,
+                                              backend=backend, dense_limit=dense_limit)
 
 
 # ---------------------------------------------------------------- trace dialog
