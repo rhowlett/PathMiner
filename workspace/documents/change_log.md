@@ -1,4 +1,4 @@
-<!-- v0.4 -->
+<!-- v0.5 -->
 # PathMiner — change log
 
 ## Versioning rules
@@ -174,3 +174,66 @@ as follows —
 canonical suites still PASS, unchanged; `python3 tools/build_single_file.py --check` (headless and
 `--board` against the real IP5385 board) — PASS, 118/118 and 284/284 on both sides, using the
 *corrected* (no-longer-falsifiable) check logic.
+
+---
+
+## 2026-09-22 — Session 08 second coordinator-review repair and scope disposition
+
+| File | Version | Change |
+|---|---|---|
+| tools/build_single_file.py | v0.3 | Fix: `check()` could still report a false PASS on internally inconsistent output — both sides exiting 0 and printing a summary claiming "N/N checks passed" while their actually-printed vector lines didn't add up to that (e.g. one printed `[PASS]` line, then "118/118 checks passed") — because the first repair validated exit code, summary presence, `passed == total`, and no-FAIL, but never cross-checked the parsed vector count/PASS count against the summary itself. Fixed: each side's parsed vector count must now equal the summary's total, and its parsed PASS count must equal the summary's reported passed count. |
+| tests/test_compatibility.py | v0.3 | ARCH-010 evidence changed from a hand-typed parallel list to genuine derivation: `_derive_vector_names()` reads `tests/test_geometry.py` / `tests/test_solver.py`'s actual source via `ast` at test time, so a rename/removal in either module test file is caught by construction. One new regression test added for the `build_single_file.py` fix above. |
+| documents/change_log.md | v0.5 | This entry |
+
+**Why — two further coordinator-review findings, addressed:**
+
+1. **`--check` could still be fooled by internally inconsistent output.** The first repair (see the
+   entry above) closed the both-sides-fail-identically false PASS, but a reviewer found a second
+   path to the same false PASS: output that exits 0 and *claims* a full pass in its summary line
+   without the printed vectors actually supporting that claim. `_validate_own_selftest()` now checks
+   `len(vectors) == total` and `count(PASS) == passed` in addition to the existing exit-code,
+   summary-presence, and FAIL-vector checks (all preserved unchanged). New regression test
+   `test_check_rejects_a_summary_that_does_not_match_the_vector_count` reproduces the reviewer's
+   exact scenario (both subprocesses exit 0, one `[PASS]` vector, "118/118 checks passed") and
+   asserts `check()` rejects it.
+2. **ARCH-010's V13/V14 evidence was still not "genuine module-side identity coverage."** A
+   hand-typed list that happens to match today's aggregate selftest output does not demonstrate
+   that it tracks the module test files — a typo or later drift in either place would go
+   undetected. `tests/test_compatibility.py` now parses `tests/test_geometry.py` /
+   `tests/test_solver.py`'s real source (inline `# V13 ...` comments where present; a mechanical
+   function-name transform where a test has none) at test time. This surfaced one genuine, narrow,
+   pre-existing discrepancy: `tests/test_geometry.py`'s inline comments say "V13 clip outside"/"V13
+   clip inside" (missing "length"), while the aggregate's stable `chk()` names carry "V13 clip
+   outside length"/"V13 clip inside length" — both sides assert the identical value at the
+   identical tolerance through the identical aliased helper, so this is a comment-wording gap in a
+   file outside this session's owned write scope, not a numerical one. Mapped explicitly and
+   narrowly (verified present in the derived set, so the mapping cannot go silently stale); any
+   other mismatch still fails the test. ARCH-010 remains **closed**, now on genuine, disclosed
+   evidence rather than an unverifiable hand-typed list.
+
+**Coordinator scope disposition (received, recorded verbatim in substance).** The coordinator has
+dispositioned the scope question this session raised in its first repair pass:
+
+> Solver/geometry integration is accepted as a bounded contribution. Wider electrical-core and
+> KiCad/board/network/builder integration remains incomplete and requires coordinator assignment
+> before M1 completion. Do not expand scope or claim that "Contributes: None" overrides the
+> session objective.
+
+This session's own prior framing — that the punch-list responsibility line ("Contributes to or
+extends: None") controls or outranks the session Objective's broader "integrate extracted modules
+into the legacy entry point" wording — is **not** the basis on which this work is accepted; both
+handoffs are corrected to state plainly that solver/geometry integration is a bounded, accepted
+contribution, and that `pathminer.core.materials`/`units`/`resistance` (PWR-001) wiring and a
+KiCad/board/network/builder integration remain **incomplete work that blocks M1 completion**,
+requiring explicit coordinator assignment — not an implicit assumption resolved by this session's
+own scope reading. No additional integration was attempted in this pass in response to this
+disposition (that would itself be an unassigned scope expansion); the disposition is recorded here
+and in both handoffs as direction for the coordinator's own tracking and for whichever session is
+assigned the remaining work.
+
+**Re-verification after both fixes.** `python3 -m pytest -q` — **471 passed** (458 baseline + 13 in
+`tests/test_compatibility.py`, up from 12); `python3 tools/pcb_trace_resistance.py --selftest` —
+118/118 (unchanged); `QT_QPA_PLATFORM=offscreen python3 tests/baseline/regression_compare.py all` —
+all three canonical suites still PASS, unchanged; `python3 tools/build_single_file.py --check`
+(headless and `--board` against the real IP5385 board) — PASS, 118/118 and 284/284 on both sides,
+using the further-corrected `check()` logic. No tolerance changed.
