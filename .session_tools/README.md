@@ -2,7 +2,7 @@
 
 These commands are stored with the PathMiner repository instead of being
 installed under `~/.local/bin`. One shared activation file discovers the main
-checkout through Git, activates `PathMiner/.venv`, and places this directory on
+checkout through Git, activates the shared venv (`$SHARED_VENV`, else `PathMiner/.venv`), and places this directory on
 `PATH` for the current shell.
 
 From the main checkout or any linked session worktree:

@@ -2,7 +2,8 @@
 #
 #   source "$(git rev-parse --path-format=absolute --git-common-dir)/../.session_tools/activate"
 #
-# It activates PathMiner's one repository-root virtual environment and exposes
+# It activates the shared virtual environment ($SHARED_VENV, else the
+# repository-root .venv) and exposes
 # the repository-local session commands. It must be sourced, not executed.
 
 _pathminer_activation_fail () {
@@ -31,8 +32,11 @@ if [ ! -d "$PATHMINER_SESSION_TOOLS_DIR" ] ; then
     _pathminer_activation_fail "session-tools directory is missing: $PATHMINER_SESSION_TOOLS_DIR"
     return 1
 fi
-if [ ! -x "$PATHMINER_ROOT/.venv/bin/python" ] ; then
-    _pathminer_activation_fail "shared virtual environment is missing: $PATHMINER_ROOT/.venv"
+# $SHARED_VENV (one venv shared by all projects) wins; otherwise the
+# repository-root .venv.
+PATHMINER_VENV="${SHARED_VENV:-$PATHMINER_ROOT/.venv}"
+if [ ! -x "$PATHMINER_VENV/bin/python" ] ; then
+    _pathminer_activation_fail "shared virtual environment is missing: $PATHMINER_VENV"
     return 1
 fi
 unset -f _pathminer_activation_fail 2> /dev/null
@@ -91,7 +95,7 @@ if [ -n "${VIRTUAL_ENV:-}" ] ; then
     fi
 fi
 
-export VIRTUAL_ENV="$PATHMINER_ROOT/.venv"
+export VIRTUAL_ENV="$PATHMINER_VENV"
 
 _OLD_VIRTUAL_PATH="$PATH"
 # Keep the venv first, followed immediately by the repository-local commands.

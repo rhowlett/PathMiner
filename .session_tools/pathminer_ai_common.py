@@ -166,7 +166,14 @@ def git_common_root(workspace: Path) -> Path:
 
 
 def shared_venv(workspace: Path) -> Path:
-    """Return PathMiner's one shared virtual environment directory."""
+    """Return PathMiner's one shared virtual environment directory.
+
+    $SHARED_VENV (one venv shared by all projects, set by the workspace
+    .bashrc) wins; otherwise the repository-root .venv.
+    """
+    configured = os.environ.get("SHARED_VENV")
+    if configured:
+        return Path(configured)
     return git_common_root(workspace) / ".venv"
 
 

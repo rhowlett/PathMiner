@@ -402,7 +402,7 @@ def main() -> int:
     parser.add_argument(
         "--no-bootstrap",
         action="store_true",
-        help="create the worktree without installing into the shared repository-root .venv",
+        help="create the worktree without installing into the shared venv ($SHARED_VENV, else repository-root .venv)",
     )
     parser.add_argument(
         "--no-launch", action="store_true", help="do not offer to launch Claude after preflight"
