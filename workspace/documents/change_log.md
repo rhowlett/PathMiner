@@ -1,4 +1,4 @@
-<!-- v0.6 -->
+<!-- v0.7 -->
 # PathMiner — change log
 
 ## Versioning rules
@@ -296,3 +296,49 @@ recorded as coordinator-assigned follow-up work and is the condition for closing
 whole item. It was not performed in this pass and is not claimed by Session 08. Whichever session
 is assigned it can reuse the `_derive_vector_names` pattern already in
 `tests/test_compatibility.py`.
+
+---
+
+## 2026-11-20 — CI repair: Qt system libraries on Ubuntu, Python 3.13 fixture fix, pinned CI tools
+
+Maintenance outside the session plan, requested by the project owner. Touches no Session 09
+write-scope file and no numerical code.
+
+| File | Version | Change |
+|---|---|---|
+| ../.github/workflows/ci.yml | v0.2 | Ubuntu jobs install libEGL, libGL, xkbcommon, fontconfig and dbus before PySide6; all jobs set `QT_QPA_PLATFORM=offscreen`; Python 3.13 added to the Ubuntu matrix; installs (test and lint) use the constraints file |
+| requirements/ci-constraints.txt | v0.1 | New. Pins pytest 9.2.0, PySide6 6.12.0 and ruff 0.16.9 for CI |
+| tests/test_board_source.py | v0.2 | Five class-scoped fixtures now stack `@pytest.fixture` above `@classmethod`, the order `test_stackup.py` and `test_kicad_sexpr.py` already use. Fixture bodies unchanged |
+| pyproject.toml | v0.3 | Adds the Python 3.13 classifier, now that CI covers it |
+| tests/baseline/README.md | v0.3 | CI section describes the workflow that exists instead of one to be configured |
+
+**Why.** Every Ubuntu CI job has failed since at least 2026-09-09 (the Session 05 integration
+run), on all three Python versions; only macOS passed. The cause was not in PathMiner's code:
+ubuntu-latest has no `libEGL.so.1`, so every PySide6 import failed (`ImportError: libEGL.so.1:
+cannot open shared object file`), taking down `tests/test_compatibility.py` and the
+`--selftest` step. The integration notes in `.ai/coordination/SESSION_STATUS.csv` record local
+pytest and regression passes, which were accurate; CI simply never confirmed them on Linux.
+
+Separately, `test_board_source.py` put `@classmethod` *above* `@pytest.fixture`. pytest 8.4+
+on Python 3.13 does not register a fixture wrapped that way, so 41 tests errored with
+`fixture 'parsed' not found` (or `'source'`). Python 3.10–3.12 and pytest ≤ 8.3 were
+unaffected, which is why neither CI nor the sessions saw it. Swapping the order works on every
+version tested and raises no deprecation warning. (Making them instance methods instead
+triggers pytest 9.2's `PytestRemovedIn10Warning`, so that fix was rejected.)
+
+The constraints file stops a new upstream release from changing CI's result by itself.
+`pyproject.toml` keeps open ranges (`pytest>=7`, `PySide6>=6.4`) so the package still
+installs anywhere.
+
+**Evidence.** Fresh venvs with `pip install -e ".[gui,dev]"`, `QT_QPA_PLATFORM=offscreen`:
+
+| Python | pytest | Before | After |
+|---|---|---|---|
+| 3.13.18 | 9.2.0 | 419 passed, 10 skipped, 41 errors | 460 passed, 10 skipped |
+| 3.13.18 | 7.4.4 | — | 460 passed, 10 skipped |
+| 3.12.3 | 9.2.0 | 460 passed, 10 skipped | 460 passed, 10 skipped |
+| 3.12.3 | 7.4.4 | — | 460 passed, 10 skipped |
+| 3.11.18 | 9.2.0 | — | 460 passed, 10 skipped |
+
+The `--selftest` and canonical-regression results are unchanged (no numerical code was
+touched). The Ubuntu library fix is confirmed by the pull request's own CI run.
