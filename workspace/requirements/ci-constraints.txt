@@ -1,0 +1,13 @@
+# v0.1
+# Pinned versions for CI (.github/workflows/ci.yml installs with -c).
+#
+# pyproject.toml keeps open ranges so the package installs anywhere;
+# this file fixes what CI tests against, so an upstream release cannot
+# turn CI red (or green) on its own. Change a pin deliberately, in its own
+# commit, after the full suite passes on the new version.
+#
+# Verified 2026-11-20 on Python 3.11, 3.12 and 3.13:
+#   pytest: 460 passed, 10 skipped (no warnings with 9.2.0)
+pytest==9.2.0
+PySide6==6.12.0
+ruff==0.16.9
