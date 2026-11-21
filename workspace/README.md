@@ -1,4 +1,4 @@
-<!-- v0.1 -->
+<!-- v0.2 -->
 # PathMiner
 
 DC resistance analysis for KiCad PCBs. Reads a `.kicad_pcb` — stackup, tracks, arcs, vias,
@@ -87,3 +87,10 @@ Read them in this order:
 Per-file version tags on line 1 (line 2 after a shebang), Minor bumped on every change, one
 change log at `documents/change_log.md`. Every delivery is a zip of this full tree. See
 `documents/change_log.md` for the rules.
+
+## Copyright & License
+
+© 2026 brickChip and Richard Howlett. Licensed under the PolyForm Noncommercial License 1.0.0:
+free for noncommercial use; commercial use needs written permission from rhowlett@eenerd.com.
+Provided as is, with no warranty and no liability. Full terms: [`../LICENSE`](../LICENSE); summary and
+entry points: the [repository README](../README.md#copyright--license).

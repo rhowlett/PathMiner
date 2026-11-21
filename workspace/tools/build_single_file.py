@@ -1,5 +1,30 @@
 #!/usr/bin/env python3
-# v0.3
+# v0.4
+################################################################################
+#                                                                              #
+# ███████  ███████    ██ ███████  ██   ██     ███████  ██   ██    ██ ███████   #
+# ██   ██  ██   ██    ██ ██   ██  ██   ██     ██   ██  ██   ██    ██ ██   ██   #
+# ██   ██  ██   ██    ██ ██       ██ ██       ██       ██   ██    ██ ██   ██   #
+# ████████ ████████  ███ ███      ████████    ███      ████████  ███ ███████   #
+# ███  ███ ███  ███  ███ ███      ███  ███    ███      ███  ███  ███ ███       #
+# ███  ███ ███  ███  ███ ███      ███  ███    ███      ███  ███  ███ ███       #
+# ███  ███ ███  ███  ███ ███  ███ ███  ███    ███  ███ ███  ███  ███ ███       #
+# ████████ ███  ███  ███ ████████ ███  ███    ████████ ███  ███  ███ ███       #
+#                                                                              #
+################################################################################
+#  Project   : PathMiner
+#  File      : build_single_file.py
+#  Copyright : (c) 2026 brickChip and Richard Howlett. All rights reserved.
+#  Author    : Richard Howlett <rhowlett@eenerd.com>
+#  License   : PolyForm Noncommercial 1.0.0. Free for noncommercial use;
+#              commercial use requires written permission from the owner.
+#              Full terms in LICENSE at the project root.
+#  Warranty  : None. Provided as is; the owner is not liable for any
+#              damages arising from its use (No Liability, LICENSE).
+#  BRICKCHIP-ENTRY-POINT: Generate the single-file PathMiner distribution
+#  SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
+################################################################################
+
 """tools/build_single_file.py — generate the single-file PathMiner distribution.
 
 Session 08 (BASE-004: "preserve a generated single-file distribution. Add

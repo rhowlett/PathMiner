@@ -1,4 +1,4 @@
-<!-- v0.7 -->
+<!-- v0.8 -->
 # PathMiner — change log
 
 ## Versioning rules
@@ -342,3 +342,87 @@ installs anywhere.
 
 The `--selftest` and canonical-regression results are unchanged (no numerical code was
 touched). The Ubuntu library fix is confirmed by the pull request's own CI run.
+
+---
+
+## 2026-11-20 — License: PolyForm Noncommercial 1.0.0, brickChip headers on every source file
+
+Owner decision (2026-11-20): PathMiner is licensed under the PolyForm Noncommercial License
+1.0.0, with an explicit no-warranty / no-liability statement. Replaces the `"Proprietary"`
+placeholder in `pyproject.toml`; the public repository had no LICENSE file before. No code
+behaviour changed: the only edits to source files are the version tag and the comment header.
+
+| File | Version | Change |
+|---|---|---|
+| ../.github/workflows/ci.yml | v0.3 | brickChip header |
+| ../.session_tools/activate | v0.1 | tag added; brickChip header + entry-point banner |
+| ../.session_tools/advance_session | v0.1 | tag added; brickChip header + entry-point banner |
+| ../.session_tools/package_session_review | v0.1 | tag added; brickChip header + entry-point banner |
+| ../.session_tools/pathminer_ai_common.py | v0.1 | tag added; brickChip header |
+| ../.session_tools/sanity_check | v0.1 | tag added; brickChip header + entry-point banner |
+| ../.session_tools/start_claude | v0.1 | tag added; brickChip header + entry-point banner |
+| ../LICENSE | — | New. Required Notice, commercial contact, no-warranty note, unmodified PolyForm Noncommercial 1.0.0 text |
+| ../README.md | v0.1 | New repository README: what it is, install, usage, generated Copyright & License section with the 10 entry points |
+| ../validate_package.py | v0.1 | tag added; brickChip header + entry-point banner |
+| README.md | v0.2 | Copyright & License section pointing to ../LICENSE |
+| pathminer/__init__.py | v0.3 | brickChip header |
+| pathminer/analysis/__init__.py | v0.2 | brickChip header |
+| pathminer/analysis/builders/__init__.py | v0.2 | brickChip header |
+| pathminer/analysis/builders/ladder.py | v0.2 | brickChip header |
+| pathminer/analysis/builders/mesh.py | v0.2 | brickChip header |
+| pathminer/analysis/builders/point_to_point.py | v0.2 | brickChip header |
+| pathminer/analysis/builders/pour.py | v0.2 | brickChip header |
+| pathminer/analysis/model_selection.py | v0.2 | brickChip header |
+| pathminer/cli/__init__.py | v0.2 | brickChip header + entry-point banner |
+| pathminer/core/__init__.py | v0.3 | brickChip header |
+| pathminer/core/geometry.py | v0.2 | brickChip header |
+| pathminer/core/materials.py | v0.2 | brickChip header |
+| pathminer/core/network.py | v0.2 | brickChip header |
+| pathminer/core/resistance.py | v0.2 | brickChip header |
+| pathminer/core/solver.py | v0.2 | brickChip header |
+| pathminer/core/units.py | v0.2 | brickChip header |
+| pathminer/kicad/__init__.py | v0.2 | brickChip header |
+| pathminer/kicad/board.py | v0.2 | brickChip header |
+| pathminer/kicad/prefs.py | v0.2 | brickChip header |
+| pathminer/kicad/sexpr.py | v0.2 | brickChip header |
+| pathminer/kicad/source.py | v0.2 | brickChip header |
+| pathminer/kicad/stackup.py | v0.2 | brickChip header |
+| pathminer/models/__init__.py | v0.2 | brickChip header |
+| pathminer/models/board.py | v0.2 | brickChip header |
+| pathminer/plugin/__init__.py | v0.2 | brickChip header |
+| pathminer/report/__init__.py | v0.2 | brickChip header |
+| pathminer/storage/__init__.py | v0.2 | brickChip header |
+| pathminer/ui/__init__.py | v0.2 | brickChip header |
+| pyproject.toml | v0.4 | brickChip header; `license` "Proprietary" → "PolyForm-Noncommercial-1.0.0"; author Richard Howlett |
+| tests/baseline/regression_compare.py | v0.3 | brickChip header + entry-point banner |
+| tests/test_board_source.py | v0.3 | brickChip header |
+| tests/test_builders.py | v0.2 | brickChip header |
+| tests/test_compatibility.py | v0.4 | brickChip header |
+| tests/test_geometry.py | v0.2 | brickChip header |
+| tests/test_import_boundaries.py | v0.3 | brickChip header |
+| tests/test_kicad_sexpr.py | v0.2 | brickChip header |
+| tests/test_materials.py | v0.2 | brickChip header |
+| tests/test_model_selection.py | v0.2 | brickChip header |
+| tests/test_network.py | v0.2 | brickChip header |
+| tests/test_prefs.py | v0.2 | brickChip header |
+| tests/test_resistance.py | v0.2 | brickChip header |
+| tests/test_solver.py | v0.2 | brickChip header |
+| tests/test_stackup.py | v0.3 | brickChip header |
+| tests/test_units.py | v0.2 | brickChip header |
+| tools/build_single_file.py | v0.4 | brickChip header + entry-point banner |
+| tools/pcb_trace_resistance.py | v0.15 | brickChip header + entry-point banner |
+
+Why: the brickChip standard (copyright and license header on every owned source file,
+entry-point banner and `BRICKCHIP-ENTRY-POINT` marker, README section, LICENSE at the root).
+Headers were applied with the brickchip-file-header script, extended this session with a
+`Warranty :` line (header), a no-warranty bullet (README) and a no-warranty note (LICENSE);
+the PolyForm text itself is unmodified and already carries its *No Liability* clause.
+`grep -rn BRICKCHIP-ENTRY-POINT .` lists the 10 entry points.
+
+Evidence: `add_header.py check .` → 0 problems. Python 3.12.3 and 3.13.18: 460 passed,
+10 skipped; `--selftest` 118/118; `regression_compare.py all` → All suites PASS; all four
+session tools answer `--help`; `bash -n .session_tools/activate` OK.
+
+Note: `validate_package.py` reports FAILED, as it already did on `main` before this change
+(20 problems: the manifest is the original package snapshot, used once to verify the unopened
+package, and has not tracked later sessions). It is not a CI gate.
