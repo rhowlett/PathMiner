@@ -1,4 +1,17 @@
-# v0.3
+# v0.4
+################################################################################
+#  Project   : PathMiner
+#  File      : test_compatibility.py
+#  Copyright : (c) 2026 brickChip and Richard Howlett. All rights reserved.
+#  Author    : Richard Howlett <rhowlett@eenerd.com>
+#  License   : PolyForm Noncommercial 1.0.0. Free for noncommercial use;
+#              commercial use requires written permission from the owner.
+#              Full terms in LICENSE at the project root.
+#  Warranty  : None. Provided as is; the owner is not liable for any
+#              damages arising from its use (No Liability, LICENSE).
+#  SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
+################################################################################
+
 """tests/test_compatibility.py — Session 08 compatibility-facade tests.
 
 Session 08 (closure owner of BASE-004, ARCH-006, ARCH-010) turns

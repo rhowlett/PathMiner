@@ -1,5 +1,30 @@
 #!/usr/bin/env python3
-# v0.2
+# v0.3
+################################################################################
+#                                                                              #
+# ███████  ███████    ██ ███████  ██   ██     ███████  ██   ██    ██ ███████   #
+# ██   ██  ██   ██    ██ ██   ██  ██   ██     ██   ██  ██   ██    ██ ██   ██   #
+# ██   ██  ██   ██    ██ ██       ██ ██       ██       ██   ██    ██ ██   ██   #
+# ████████ ████████  ███ ███      ████████    ███      ████████  ███ ███████   #
+# ███  ███ ███  ███  ███ ███      ███  ███    ███      ███  ███  ███ ███       #
+# ███  ███ ███  ███  ███ ███      ███  ███    ███      ███  ███  ███ ███       #
+# ███  ███ ███  ███  ███ ███  ███ ███  ███    ███  ███ ███  ███  ███ ███       #
+# ████████ ███  ███  ███ ████████ ███  ███    ████████ ███  ███  ███ ███       #
+#                                                                              #
+################################################################################
+#  Project   : PathMiner
+#  File      : regression_compare.py
+#  Copyright : (c) 2026 brickChip and Richard Howlett. All rights reserved.
+#  Author    : Richard Howlett <rhowlett@eenerd.com>
+#  License   : PolyForm Noncommercial 1.0.0. Free for noncommercial use;
+#              commercial use requires written permission from the owner.
+#              Full terms in LICENSE at the project root.
+#  Warranty  : None. Provided as is; the owner is not liable for any
+#              damages arising from its use (No Liability, LICENSE).
+#  BRICKCHIP-ENTRY-POINT: Compare selftest and report output with the v0.13 golden fixtures
+#  SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
+################################################################################
+
 """
 PathMiner v0.13 Baseline Regression Comparator
 Session 01 — QA-004 contribution

@@ -1,4 +1,17 @@
-# v0.1
+# v0.3
+################################################################################
+#  Project   : PathMiner
+#  File      : test_board_source.py
+#  Copyright : (c) 2026 brickChip and Richard Howlett. All rights reserved.
+#  Author    : Richard Howlett <rhowlett@eenerd.com>
+#  License   : PolyForm Noncommercial 1.0.0. Free for noncommercial use;
+#              commercial use requires written permission from the owner.
+#              Full terms in LICENSE at the project root.
+#  Warranty  : None. Provided as is; the owner is not liable for any
+#              damages arising from its use (No Liability, LICENSE).
+#  SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
+################################################################################
+
 """Tests for pathminer.kicad.board / pathminer.kicad.source / pathminer.models.board.
 
 Session 06 — BoardSource and file-backed board model.
@@ -105,8 +118,8 @@ class TestRefPadName:
 
 
 class TestParseBoardPositive:
-    @classmethod
     @pytest.fixture(scope="class")
+    @classmethod
     def parsed(cls) -> ParsedBoard:
         return parse_board(BOARD_MIN)
 
@@ -200,8 +213,8 @@ class TestParseBoardFailure:
 
 
 class TestFileBoardSourceProtocol:
-    @classmethod
     @pytest.fixture(scope="class")
+    @classmethod
     def source(cls) -> FileBoardSource:
         return FileBoardSource(BOARD_MIN)
 
@@ -245,8 +258,8 @@ class TestFileBoardSourceProtocol:
 
 
 class TestStableTerminalLookup:
-    @classmethod
     @pytest.fixture(scope="class")
+    @classmethod
     def source(cls) -> FileBoardSource:
         return FileBoardSource(BOARD_MIN)
 
@@ -306,8 +319,8 @@ class TestAmbiguousPadIdentity:
     the second pad's real net was lost. This must instead be a named,
     reported failure."""
 
-    @classmethod
     @pytest.fixture(scope="class")
+    @classmethod
     def source(cls) -> FileBoardSource:
         return FileBoardSource(BOARD_AMBIGUOUS_PAD)
 
@@ -405,8 +418,8 @@ class TestDriftDiagnostics:
 
 
 class TestRealBoardRegression:
-    @classmethod
     @pytest.fixture(scope="class")
+    @classmethod
     def source(cls) -> FileBoardSource:
         return FileBoardSource(REFERENCE_BOARD)
 

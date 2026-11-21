@@ -1,4 +1,4 @@
-<!-- v0.6 -->
+<!-- v0.8 -->
 # PathMiner — change log
 
 ## Versioning rules
@@ -296,3 +296,133 @@ recorded as coordinator-assigned follow-up work and is the condition for closing
 whole item. It was not performed in this pass and is not claimed by Session 08. Whichever session
 is assigned it can reuse the `_derive_vector_names` pattern already in
 `tests/test_compatibility.py`.
+
+---
+
+## 2026-11-20 — CI repair: Qt system libraries on Ubuntu, Python 3.13 fixture fix, pinned CI tools
+
+Maintenance outside the session plan, requested by the project owner. Touches no Session 09
+write-scope file and no numerical code.
+
+| File | Version | Change |
+|---|---|---|
+| ../.github/workflows/ci.yml | v0.2 | Ubuntu jobs install libEGL, libGL, xkbcommon, fontconfig and dbus before PySide6; all jobs set `QT_QPA_PLATFORM=offscreen`; Python 3.13 added to the Ubuntu matrix; installs (test and lint) use the constraints file |
+| requirements/ci-constraints.txt | v0.1 | New. Pins pytest 9.2.0, PySide6 6.12.0 and ruff 0.16.9 for CI |
+| tests/test_board_source.py | v0.2 | Five class-scoped fixtures now stack `@pytest.fixture` above `@classmethod`, the order `test_stackup.py` and `test_kicad_sexpr.py` already use. Fixture bodies unchanged |
+| pyproject.toml | v0.3 | Adds the Python 3.13 classifier, now that CI covers it |
+| tests/baseline/README.md | v0.3 | CI section describes the workflow that exists instead of one to be configured |
+
+**Why.** Every Ubuntu CI job has failed since at least 2026-09-09 (the Session 05 integration
+run), on all three Python versions; only macOS passed. The cause was not in PathMiner's code:
+ubuntu-latest has no `libEGL.so.1`, so every PySide6 import failed (`ImportError: libEGL.so.1:
+cannot open shared object file`), taking down `tests/test_compatibility.py` and the
+`--selftest` step. The integration notes in `.ai/coordination/SESSION_STATUS.csv` record local
+pytest and regression passes, which were accurate; CI simply never confirmed them on Linux.
+
+Separately, `test_board_source.py` put `@classmethod` *above* `@pytest.fixture`. pytest 8.4+
+on Python 3.13 does not register a fixture wrapped that way, so 41 tests errored with
+`fixture 'parsed' not found` (or `'source'`). Python 3.10–3.12 and pytest ≤ 8.3 were
+unaffected, which is why neither CI nor the sessions saw it. Swapping the order works on every
+version tested and raises no deprecation warning. (Making them instance methods instead
+triggers pytest 9.2's `PytestRemovedIn10Warning`, so that fix was rejected.)
+
+The constraints file stops a new upstream release from changing CI's result by itself.
+`pyproject.toml` keeps open ranges (`pytest>=7`, `PySide6>=6.4`) so the package still
+installs anywhere.
+
+**Evidence.** Fresh venvs with `pip install -e ".[gui,dev]"`, `QT_QPA_PLATFORM=offscreen`:
+
+| Python | pytest | Before | After |
+|---|---|---|---|
+| 3.13.18 | 9.2.0 | 419 passed, 10 skipped, 41 errors | 460 passed, 10 skipped |
+| 3.13.18 | 7.4.4 | — | 460 passed, 10 skipped |
+| 3.12.3 | 9.2.0 | 460 passed, 10 skipped | 460 passed, 10 skipped |
+| 3.12.3 | 7.4.4 | — | 460 passed, 10 skipped |
+| 3.11.18 | 9.2.0 | — | 460 passed, 10 skipped |
+
+The `--selftest` and canonical-regression results are unchanged (no numerical code was
+touched). The Ubuntu library fix is confirmed by the pull request's own CI run.
+
+---
+
+## 2026-11-20 — License: PolyForm Noncommercial 1.0.0, brickChip headers on every source file
+
+Owner decision (2026-11-20): PathMiner is licensed under the PolyForm Noncommercial License
+1.0.0, with an explicit no-warranty / no-liability statement. Replaces the `"Proprietary"`
+placeholder in `pyproject.toml`; the public repository had no LICENSE file before. No code
+behaviour changed: the only edits to source files are the version tag and the comment header.
+
+| File | Version | Change |
+|---|---|---|
+| ../.github/workflows/ci.yml | v0.3 | brickChip header |
+| ../.session_tools/activate | v0.1 | tag added; brickChip header + entry-point banner |
+| ../.session_tools/advance_session | v0.1 | tag added; brickChip header + entry-point banner |
+| ../.session_tools/package_session_review | v0.1 | tag added; brickChip header + entry-point banner |
+| ../.session_tools/pathminer_ai_common.py | v0.1 | tag added; brickChip header |
+| ../.session_tools/sanity_check | v0.1 | tag added; brickChip header + entry-point banner |
+| ../.session_tools/start_claude | v0.1 | tag added; brickChip header + entry-point banner |
+| ../LICENSE | — | New. Required Notice, commercial contact, no-warranty note, unmodified PolyForm Noncommercial 1.0.0 text |
+| ../README.md | v0.1 | New repository README: what it is, install, usage, generated Copyright & License section with the 10 entry points |
+| ../validate_package.py | v0.1 | tag added; brickChip header + entry-point banner |
+| README.md | v0.2 | Copyright & License section pointing to ../LICENSE |
+| pathminer/__init__.py | v0.3 | brickChip header |
+| pathminer/analysis/__init__.py | v0.2 | brickChip header |
+| pathminer/analysis/builders/__init__.py | v0.2 | brickChip header |
+| pathminer/analysis/builders/ladder.py | v0.2 | brickChip header |
+| pathminer/analysis/builders/mesh.py | v0.2 | brickChip header |
+| pathminer/analysis/builders/point_to_point.py | v0.2 | brickChip header |
+| pathminer/analysis/builders/pour.py | v0.2 | brickChip header |
+| pathminer/analysis/model_selection.py | v0.2 | brickChip header |
+| pathminer/cli/__init__.py | v0.2 | brickChip header + entry-point banner |
+| pathminer/core/__init__.py | v0.3 | brickChip header |
+| pathminer/core/geometry.py | v0.2 | brickChip header |
+| pathminer/core/materials.py | v0.2 | brickChip header |
+| pathminer/core/network.py | v0.2 | brickChip header |
+| pathminer/core/resistance.py | v0.2 | brickChip header |
+| pathminer/core/solver.py | v0.2 | brickChip header |
+| pathminer/core/units.py | v0.2 | brickChip header |
+| pathminer/kicad/__init__.py | v0.2 | brickChip header |
+| pathminer/kicad/board.py | v0.2 | brickChip header |
+| pathminer/kicad/prefs.py | v0.2 | brickChip header |
+| pathminer/kicad/sexpr.py | v0.2 | brickChip header |
+| pathminer/kicad/source.py | v0.2 | brickChip header |
+| pathminer/kicad/stackup.py | v0.2 | brickChip header |
+| pathminer/models/__init__.py | v0.2 | brickChip header |
+| pathminer/models/board.py | v0.2 | brickChip header |
+| pathminer/plugin/__init__.py | v0.2 | brickChip header |
+| pathminer/report/__init__.py | v0.2 | brickChip header |
+| pathminer/storage/__init__.py | v0.2 | brickChip header |
+| pathminer/ui/__init__.py | v0.2 | brickChip header |
+| pyproject.toml | v0.4 | brickChip header; `license` "Proprietary" → "PolyForm-Noncommercial-1.0.0"; author Richard Howlett |
+| tests/baseline/regression_compare.py | v0.3 | brickChip header + entry-point banner |
+| tests/test_board_source.py | v0.3 | brickChip header |
+| tests/test_builders.py | v0.2 | brickChip header |
+| tests/test_compatibility.py | v0.4 | brickChip header |
+| tests/test_geometry.py | v0.2 | brickChip header |
+| tests/test_import_boundaries.py | v0.3 | brickChip header |
+| tests/test_kicad_sexpr.py | v0.2 | brickChip header |
+| tests/test_materials.py | v0.2 | brickChip header |
+| tests/test_model_selection.py | v0.2 | brickChip header |
+| tests/test_network.py | v0.2 | brickChip header |
+| tests/test_prefs.py | v0.2 | brickChip header |
+| tests/test_resistance.py | v0.2 | brickChip header |
+| tests/test_solver.py | v0.2 | brickChip header |
+| tests/test_stackup.py | v0.3 | brickChip header |
+| tests/test_units.py | v0.2 | brickChip header |
+| tools/build_single_file.py | v0.4 | brickChip header + entry-point banner |
+| tools/pcb_trace_resistance.py | v0.15 | brickChip header + entry-point banner |
+
+Why: the brickChip standard (copyright and license header on every owned source file,
+entry-point banner and `BRICKCHIP-ENTRY-POINT` marker, README section, LICENSE at the root).
+Headers were applied with the brickchip-file-header script, extended this session with a
+`Warranty :` line (header), a no-warranty bullet (README) and a no-warranty note (LICENSE);
+the PolyForm text itself is unmodified and already carries its *No Liability* clause.
+`grep -rn BRICKCHIP-ENTRY-POINT .` lists the 10 entry points.
+
+Evidence: `add_header.py check .` → 0 problems. Python 3.12.3 and 3.13.18: 460 passed,
+10 skipped; `--selftest` 118/118; `regression_compare.py all` → All suites PASS; all four
+session tools answer `--help`; `bash -n .session_tools/activate` OK.
+
+Note: `validate_package.py` reports FAILED, as it already did on `main` before this change
+(20 problems: the manifest is the original package snapshot, used once to verify the unopened
+package, and has not tracked later sessions). It is not a CI gate.

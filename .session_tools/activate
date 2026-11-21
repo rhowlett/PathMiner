@@ -1,3 +1,29 @@
+# v0.1
+################################################################################
+#                                                                              #
+# ███████  ███████    ██ ███████  ██   ██     ███████  ██   ██    ██ ███████   #
+# ██   ██  ██   ██    ██ ██   ██  ██   ██     ██   ██  ██   ██    ██ ██   ██   #
+# ██   ██  ██   ██    ██ ██       ██ ██       ██       ██   ██    ██ ██   ██   #
+# ████████ ████████  ███ ███      ████████    ███      ████████  ███ ███████   #
+# ███  ███ ███  ███  ███ ███      ███  ███    ███      ███  ███  ███ ███       #
+# ███  ███ ███  ███  ███ ███      ███  ███    ███      ███  ███  ███ ███       #
+# ███  ███ ███  ███  ███ ███  ███ ███  ███    ███  ███ ███  ███  ███ ███       #
+# ████████ ███  ███  ███ ████████ ███  ███    ████████ ███  ███  ███ ███       #
+#                                                                              #
+################################################################################
+#  Project   : PathMiner
+#  File      : activate
+#  Copyright : (c) 2026 brickChip and Richard Howlett. All rights reserved.
+#  Author    : Richard Howlett <rhowlett@eenerd.com>
+#  License   : PolyForm Noncommercial 1.0.0. Free for noncommercial use;
+#              commercial use requires written permission from the owner.
+#              Full terms in LICENSE at the project root.
+#  Warranty  : None. Provided as is; the owner is not liable for any
+#              damages arising from its use (No Liability, LICENSE).
+#  BRICKCHIP-ENTRY-POINT: Source to activate the shared venv and the session tools
+#  SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
+################################################################################
+
 # Source this file from any PathMiner checkout or linked worktree:
 #
 #   source "$(git rev-parse --path-format=absolute --git-common-dir)/../.session_tools/activate"

@@ -1,4 +1,4 @@
-<!-- v0.2 -->
+<!-- v0.3 -->
 # PathMiner v0.13 Baseline Tests
 
 **Baseline Commit:** fe507fd01017cd0930739cbd8c4cc3f916b47e98
@@ -171,10 +171,16 @@ Full details in `tests/baseline/PERFORMANCE_BASELINE_v0.13.txt`.
 
 ### GitHub Actions / CI
 
-When automated CI is configured, the test suite should:
-1. Run `--selftest` in headless mode (118/118 target)
-2. Run `regression_compare.py all` against golden fixtures
-3. Reject PRs that break any acceptance vector or exceed performance threshold
+CI is configured in `.github/workflows/ci.yml` (one level above `workspace/`). On every push
+to `main` or `ai/session-*` and every pull request to `main` it runs, on Python 3.10–3.13
+(Ubuntu) and 3.12 (macOS):
+1. `python -m pytest -q`
+2. `--selftest` in headless mode (118/118 target)
+3. `regression_compare.py all` against golden fixtures (Python 3.12 / Ubuntu only)
+
+Tool versions are pinned in `requirements/ci-constraints.txt`. On Ubuntu the workflow first
+installs the system libraries PySide6 needs (libEGL and friends) and runs with
+`QT_QPA_PLATFORM=offscreen`. Performance thresholds are not yet enforced by CI.
 
 ### Local Pre-commit Hook
 
